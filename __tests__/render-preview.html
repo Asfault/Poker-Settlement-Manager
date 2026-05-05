@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Summary Card Preview</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    </style>
+  </head>
+  <body>
+    <!-- Sample card replicated as plain HTML so we can render it
+         without a full Next.js build, just to visually verify the layout.
+         This file is ONLY for verification — not part of the app. -->
+    <div id="card" style="
+      width: 1080px;
+      height: 1080px;
+      padding: 44px;
+      box-sizing: border-box;
+      background: radial-gradient(ellipse at top, #173a2c 0%, #0c1b15 55%, #060d0a 100%);
+      color: #f3f4f6;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+    ">
+      <!-- Glows -->
+      <div style="position:absolute;top:-260px;right:-260px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle, rgba(212,167,44,0.18), transparent 70%);pointer-events:none;"></div>
+      <div style="position:absolute;bottom:-260px;left:-260px;width:540px;height:540px;border-radius:50%;background:radial-gradient(circle, rgba(34,197,94,0.12), transparent 70%);pointer-events:none;"></div>
+
+      <!-- Header -->
+      <div style="text-align:center;position:relative;">
+        <div style="font-size:14px;letter-spacing:0.4em;color:rgba(233,196,106,0.85);font-weight:700;margin-bottom:4px;">♠ ♥ ♦ ♣</div>
+        <h1 style="font-size:52px;font-weight:900;letter-spacing:0.18em;margin:0;line-height:1;background:linear-gradient(135deg,#fff8e1 0%,#e9c46a 50%,#c69423 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">GAME SUMMARY</h1>
+        <div style="font-size:14px;letter-spacing:0.5em;color:rgba(255,255,255,0.45);margin-top:8px;font-weight:600;">SESSION CLOSED</div>
+      </div>
+
+      <!-- Total pot banner -->
+      <div style="display:flex;align-items:center;gap:20px;padding:20px 28px;border-radius:22px;background:linear-gradient(135deg, rgba(212,167,44,0.22) 0%, rgba(212,167,44,0.05) 100%);border:1px solid rgba(233,196,106,0.45);box-shadow:0 0 40px rgba(233,196,106,0.12), inset 0 1px 0 rgba(255,255,255,0.08);">
+        <div style="width:68px;height:68px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;color:#0a0f0c;background:linear-gradient(135deg,#f5d27e 0%,#c69423 100%);box-shadow:0 6px 20px rgba(0,0,0,0.35);flex-shrink:0;">₹</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;letter-spacing:0.3em;color:rgba(255,255,255,0.55);font-weight:600;">TOTAL POT</div>
+          <div style="font-size:56px;font-weight:900;color:#e9c46a;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-0.01em;">₹1,02,000</div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div style="background:rgba(10,19,15,0.65);border:1px solid rgba(255,255,255,0.06);border-radius:20px;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr;padding:10px 22px;background:rgba(23,58,44,0.7);font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:rgba(255,255,255,0.6);font-weight:700;">
+          <div>Player</div><div style="text-align:right;">Buy-in</div><div style="text-align:right;">Chips Left</div><div style="text-align:right;">P / L</div>
+        </div>
+        <!-- rows -->
+        <div style="display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr;padding:11px 22px;font-size:19px;align-items:center;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#3b82f6;color:#0a0f0c;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">DH</div>
+            <span style="font-weight:600;">Dhermesh</span>
+          </div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹15,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹40,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:#22c55e;">+₹25,000</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr;padding:11px 22px;font-size:19px;align-items:center;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.04);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#ec4899;color:#0a0f0c;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">HA</div>
+            <span style="font-weight:600;">Hari</span>
+          </div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹12,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹20,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:#22c55e;">+₹8,000</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr;padding:11px 22px;font-size:19px;align-items:center;border-top:1px solid rgba(255,255,255,0.04);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#10b981;color:#0a0f0c;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">SI</div>
+            <span style="font-weight:600;">Sita</span>
+          </div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹20,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹22,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:#22c55e;">+₹2,000</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr;padding:11px 22px;font-size:19px;align-items:center;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.04);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#f59e0b;color:#0a0f0c;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">RA</div>
+            <span style="font-weight:600;">Ram</span>
+          </div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹35,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹0</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:#ef4444;">-₹35,000</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr;padding:11px 22px;font-size:19px;align-items:center;border-top:1px solid rgba(255,255,255,0.04);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#8b5cf6;color:#0a0f0c;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">GE</div>
+            <span style="font-weight:600;">Geeta</span>
+          </div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹20,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.85);">₹20,000</div>
+          <div style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:rgba(255,255,255,0.6);">+₹0</div>
+        </div>
+      </div>
+
+      <!-- Settlements -->
+      <div style="background:rgba(10,19,15,0.65);border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:14px 22px;flex:1;min-height:0;display:flex;flex-direction:column;">
+        <div style="font-size:12px;letter-spacing:0.3em;color:rgba(255,255,255,0.55);font-weight:700;margin-bottom:8px;">SETTLEMENTS</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:12px;font-size:19px;padding:5px 0;">
+            <span style="color:#ef4444;font-weight:700;">Ram</span>
+            <span style="color:rgba(233,196,106,0.85);font-weight:700;font-size:18px;">→</span>
+            <span style="color:#22c55e;font-weight:700;">Dhermesh</span>
+            <span style="margin-left:auto;color:#e9c46a;font-weight:800;font-variant-numeric:tabular-nums;">₹25,000</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;font-size:19px;padding:5px 0;">
+            <span style="color:#ef4444;font-weight:700;">Ram</span>
+            <span style="color:rgba(233,196,106,0.85);font-weight:700;font-size:18px;">→</span>
+            <span style="color:#22c55e;font-weight:700;">Hari</span>
+            <span style="margin-left:auto;color:#e9c46a;font-weight:800;font-variant-numeric:tabular-nums;">₹8,000</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;font-size:19px;padding:5px 0;">
+            <span style="color:#ef4444;font-weight:700;">Ram</span>
+            <span style="color:rgba(233,196,106,0.85);font-weight:700;font-size:18px;">→</span>
+            <span style="color:#22c55e;font-weight:700;">Sita</span>
+            <span style="margin-left:auto;color:#e9c46a;font-weight:800;font-variant-numeric:tabular-nums;">₹2,000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top winners -->
+      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:14px;">
+        <div style="background:rgba(10,19,15,0.7);border:1.5px solid #e9c46a;border-radius:16px;padding:12px 14px;box-shadow:0 0 24px rgba(233,196,106,0.35);display:flex;align-items:center;gap:12px;min-width:0;">
+          <div style="font-size:32px;line-height:1;flex-shrink:0;">🥇</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:18px;font-weight:700;">Dhermesh</div>
+            <div style="font-size:18px;font-weight:800;color:#22c55e;font-variant-numeric:tabular-nums;">+₹25,000</div>
+          </div>
+        </div>
+        <div style="background:rgba(10,19,15,0.7);border:1.5px solid #cbd5e1;border-radius:16px;padding:12px 14px;box-shadow:0 0 24px rgba(203,213,225,0.3);display:flex;align-items:center;gap:12px;min-width:0;">
+          <div style="font-size:32px;line-height:1;flex-shrink:0;">🥈</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:18px;font-weight:700;">Hari</div>
+            <div style="font-size:18px;font-weight:800;color:#22c55e;font-variant-numeric:tabular-nums;">+₹8,000</div>
+          </div>
+        </div>
+        <div style="background:rgba(10,19,15,0.7);border:1.5px solid #cd7f32;border-radius:16px;padding:12px 14px;box-shadow:0 0 24px rgba(205,127,50,0.3);display:flex;align-items:center;gap:12px;min-width:0;">
+          <div style="font-size:32px;line-height:1;flex-shrink:0;">🥉</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:18px;font-weight:700;">Sita</div>
+            <div style="font-size:18px;font-weight:800;color:#22c55e;font-variant-numeric:tabular-nums;">+₹2,000</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;font-size:14px;letter-spacing:0.18em;color:rgba(255,255,255,0.55);font-weight:600;margin-top:2px;">SETTLE UP — ENJOYED THE GAME, SEE YOU NEXT TIME! 😊</div>
+    </div>
+  </body>
+</html>

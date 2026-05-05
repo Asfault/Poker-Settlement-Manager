@@ -1,0 +1,313 @@
+"use client";
+
+import { useState } from "react";
+import type { Session } from "@/lib/types";
+import { uid } from "@/lib/id";
+import { formatINR } from "@/lib/format";
+import { totalBuyIn } from "@/lib/settlement";
+import Button from "./Button";
+import Card from "./Card";
+
+const QUICK_AMOUNTS = [1000, 2000, 4000, 5000];
+
+export default function LiveSessionScreen({
+  session,
+  setSession,
+  onSessionOver,
+}: {
+  session: Session;
+  setSession: (updater: (s: Session) => Session) => void;
+  onSessionOver: () => void;
+}) {
+  const [customByPlayer, setCustomByPlayer] = useState<Record<string, string>>(
+    {},
+  );
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
+
+  const totalPot = session.players.reduce(
+    (sum, p) => sum + totalBuyIn(p),
+    0,
+  );
+
+  function addBuyIn(playerId: string, amount: number) {
+    if (amount <= 0) return;
+    setSession((s) => ({
+      ...s,
+      players: s.players.map((p) =>
+        p.id === playerId
+          ? {
+              ...p,
+              buyIns: [
+                ...p.buyIns,
+                { id: uid(), amount, at: Date.now() },
+              ],
+            }
+          : p,
+      ),
+    }));
+  }
+
+  function removeBuyIn(playerId: string, buyInId: string) {
+    setSession((s) => ({
+      ...s,
+      players: s.players.map((p) =>
+        p.id === playerId
+          ? { ...p, buyIns: p.buyIns.filter((b) => b.id !== buyInId) }
+          : p,
+      ),
+    }));
+  }
+
+  function addPlayer() {
+    const trimmed = newPlayerName.trim();
+    if (trimmed.length === 0) return;
+    const duplicate = session.players.some(
+      (p) => p.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (duplicate) return;
+    setSession((s) => ({
+      ...s,
+      players: [
+        ...s.players,
+        { id: uid(), name: trimmed, buyIns: [], chipsLeft: null },
+      ],
+    }));
+    setNewPlayerName("");
+    setShowAddPlayer(false);
+  }
+
+  function removePlayer(playerId: string) {
+    const player = session.players.find((p) => p.id === playerId);
+    if (!player) return;
+    if (player.buyIns.length > 0) {
+      const ok = window.confirm(
+        `Remove ${player.name}? Their ${player.buyIns.length} buy-in${
+          player.buyIns.length === 1 ? "" : "s"
+        } will also be deleted.`,
+      );
+      if (!ok) return;
+    }
+    setSession((s) => ({
+      ...s,
+      players: s.players.filter((p) => p.id !== playerId),
+    }));
+  }
+
+  function handleCustom(playerId: string) {
+    const raw = customByPlayer[playerId] ?? "";
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    addBuyIn(playerId, Math.round(amount));
+    setCustomByPlayer((m) => ({ ...m, [playerId]: "" }));
+  }
+
+  return (
+    <div className="min-h-screen px-4 py-6 sm:py-10 pb-32">
+      <div className="max-w-2xl mx-auto">
+        <header className="mb-5">
+          <h1 className="text-xl font-bold">Live Session</h1>
+          <p className="text-white/50 text-sm">
+            {session.players.length} players · Tap to add buy-ins
+          </p>
+        </header>
+
+        <Card className="p-4 sm:p-5 mb-5 flex items-center justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-white/50">
+              Total pot
+            </div>
+            <div className="text-3xl font-bold text-gold-400 tabular-nums">
+              {formatINR(totalPot)}
+            </div>
+          </div>
+          <div className="text-5xl opacity-70">🎰</div>
+        </Card>
+
+        {/* Add another player — kept at the top so it's always reachable */}
+        {showAddPlayer ? (
+          <Card className="p-4 sm:p-5 mb-4 border-dashed border-white/20">
+            <label className="block text-sm text-white/70 mb-2">
+              New player name
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPlayerName}
+                onChange={(e) => setNewPlayerName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addPlayer();
+                  if (e.key === "Escape") {
+                    setShowAddPlayer(false);
+                    setNewPlayerName("");
+                  }
+                }}
+                placeholder="e.g. Sita"
+                className="flex-1 bg-felt-900 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500"
+                autoFocus
+              />
+              <Button
+                onClick={addPlayer}
+                disabled={
+                  newPlayerName.trim().length === 0 ||
+                  session.players.some(
+                    (p) =>
+                      p.name.toLowerCase() ===
+                      newPlayerName.trim().toLowerCase(),
+                  )
+                }
+              >
+                Add
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowAddPlayer(false);
+                  setNewPlayerName("");
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            {newPlayerName.trim().length > 0 &&
+              session.players.some(
+                (p) =>
+                  p.name.toLowerCase() ===
+                  newPlayerName.trim().toLowerCase(),
+              ) && (
+                <p className="text-loss text-xs mt-2">
+                  A player with that name already exists.
+                </p>
+              )}
+          </Card>
+        ) : (
+          <button
+            onClick={() => setShowAddPlayer(true)}
+            className="w-full mb-4 py-3 rounded-2xl border-2 border-dashed border-white/15 text-white/60 hover:text-white hover:border-white/30 hover:bg-white/5 transition-colors text-sm font-semibold"
+          >
+            + Add Player
+          </button>
+        )}
+
+        <div className="flex flex-col gap-4">
+          {session.players.map((p) => {
+            const total = totalBuyIn(p);
+            const custom = customByPlayer[p.id] ?? "";
+            return (
+              <Card key={p.id} className="p-4 sm:p-5">
+                <div className="flex items-baseline justify-between mb-3 gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="text-lg font-semibold truncate">
+                      {p.name}
+                    </h3>
+                    <button
+                      onClick={() => removePlayer(p.id)}
+                      title={`Remove ${p.name}`}
+                      aria-label={`Remove ${p.name}`}
+                      className="text-white/30 hover:text-loss text-base leading-none px-1.5 py-0.5 rounded hover:bg-loss/10 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-white/50">Total buy-in</div>
+                    <div className="text-xl font-bold text-gold-400 tabular-nums">
+                      {formatINR(total)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {QUICK_AMOUNTS.map((amt) => (
+                    <Button
+                      key={amt}
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => addBuyIn(p.id, amt)}
+                      className="!py-2"
+                    >
+                      +{formatINR(amt)}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 mb-3">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={custom}
+                      onChange={(e) =>
+                        setCustomByPlayer((m) => ({
+                          ...m,
+                          [p.id]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCustom(p.id);
+                      }}
+                      placeholder="Custom amount"
+                      className="w-full bg-felt-900 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => handleCustom(p.id)}
+                    disabled={!custom || Number(custom) <= 0}
+                    size="sm"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {p.buyIns.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-white/50 hover:text-white/80 select-none">
+                      Buy-in history ({p.buyIns.length})
+                    </summary>
+                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                      {p.buyIns.map((b) => (
+                        <li
+                          key={b.id}
+                          className="group flex items-center gap-1 text-xs bg-felt-900 border border-white/10 rounded-full pl-2.5 pr-1 py-1"
+                        >
+                          <span className="text-white/80 tabular-nums">
+                            {formatINR(b.amount)}
+                          </span>
+                          <button
+                            onClick={() => removeBuyIn(p.id, b.id)}
+                            className="text-white/30 hover:text-loss px-1.5 leading-none"
+                            title="Remove buy-in"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-felt-900 via-felt-900/95 to-transparent">
+        <div className="max-w-2xl mx-auto">
+          <Button
+            size="lg"
+            variant="danger"
+            onClick={onSessionOver}
+            className="w-full"
+            disabled={totalPot === 0}
+          >
+            Session Over
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
