@@ -70,7 +70,7 @@ export default function AddPlayersScreen({
               onKeyDown={(e) => {
                 if (e.key === "Enter") addPlayer();
               }}
-              placeholder="e.g. Ram"
+              placeholder="e.g. GOAT Dhermesh"
               className="flex-1 bg-felt-900 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500"
               autoFocus
             />
