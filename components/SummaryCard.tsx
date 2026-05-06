@@ -1,74 +1,8 @@
 "use client";
 
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef } from "react";
 import type { PlayerResult, Settlement } from "@/lib/types";
 import { formatINR } from "@/lib/format";
-
-const TABLE_FONT_FAMILY =
-  'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const TABLE_NAME_FONT_WEIGHT = 600;
-const TABLE_FONT_MAX = 36;
-const TABLE_FONT_MIN = 28;
-/**
- * Available pixel width for the player name span at the natural 1080×1920
- * layout. Derived from: card width 1080 - card padding 96 - row inner padding
- * 52 = 932 row content; player column is 1.7/4.75 of that ≈ 332; minus the
- * 44px avatar + 14px gap ≈ 274. We use a slightly conservative value to
- * leave a small safety margin against font/measurement variance.
- */
-const NAME_MAX_WIDTH = 264;
-
-// Available widths per column (approx, with a small safety margin).
-// Player col ≈ 333 − avatar block 58 ≈ 275; using 264 as conservative cap.
-const NUM_MAX_WIDTH = 188;
-const PL_MAX_WIDTH = 198;
-
-/**
- * Pick the largest font size in [MIN, MAX] at which every body row fits in
- * its column — checks player name, buy-in, chips left, and P/L together.
- */
-function pickBodyFontSize(rows: PlayerResult[]): number {
-  if (typeof document === "undefined" || rows.length === 0) return TABLE_FONT_MAX;
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return TABLE_FONT_MAX;
-
-  for (let size = TABLE_FONT_MAX; size >= TABLE_FONT_MIN; size -= 1) {
-    let allFit = true;
-    for (const r of rows) {
-      // Player name (semibold)
-      ctx.font = `${TABLE_NAME_FONT_WEIGHT} ${size}px ${TABLE_FONT_FAMILY}`;
-      if (ctx.measureText(r.name).width > NAME_MAX_WIDTH) {
-        allFit = false;
-        break;
-      }
-      // Buy-in / chips left (regular)
-      ctx.font = `400 ${size}px ${TABLE_FONT_FAMILY}`;
-      if (ctx.measureText(formatINR(r.totalBuyIn)).width > NUM_MAX_WIDTH) {
-        allFit = false;
-        break;
-      }
-      if (ctx.measureText(formatINR(r.chipsLeft)).width > NUM_MAX_WIDTH) {
-        allFit = false;
-        break;
-      }
-      // P/L (bold)
-      ctx.font = `800 ${size}px ${TABLE_FONT_FAMILY}`;
-      const pl =
-        r.profitLoss > 0
-          ? `+${formatINR(r.profitLoss)}`
-          : r.profitLoss < 0
-            ? formatINR(r.profitLoss)
-            : formatINR(0);
-      if (ctx.measureText(pl).width > PL_MAX_WIDTH) {
-        allFit = false;
-        break;
-      }
-    }
-    if (allFit) return size;
-  }
-  return TABLE_FONT_MIN;
-}
 
 interface SummaryCardProps {
   startedAt: number;
@@ -79,17 +13,28 @@ interface SummaryCardProps {
   biggestWinner?: PlayerResult | null;
 }
 
+const CARD_WIDTH = 1080;
+const CARD_HEIGHT = 1920;
+const GOLD = "#ffd95a";
+const PANEL = "rgba(0, 28, 20, 0.78)";
+const PANEL_DARK = "rgba(2, 14, 13, 0.92)";
+const LINE = "rgba(255, 217, 90, 0.38)";
+const WHITE = "#fffaf0";
+const MUTED = "rgba(255, 250, 240, 0.78)";
+const GREEN = "#5cf16f";
+const RED = "#ff5f65";
+
 const AVATAR_PALETTE = [
-  "#ef4444",
-  "#f97316",
-  "#f59e0b",
-  "#84cc16",
-  "#10b981",
-  "#06b6d4",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
+  "#2f80ed",
+  "#d92d35",
+  "#27ae60",
+  "#8e44ad",
+  "#e67e22",
+  "#2bb6a8",
+  "#1f8fe5",
+  "#b96b2c",
+  "#7c5cff",
+  "#e84393",
 ];
 
 function avatarColor(name: string): string {
@@ -101,346 +46,389 @@ function avatarColor(name: string): string {
 }
 
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function signedINR(amount: number): string {
   if (amount > 0) return `+${formatINR(amount)}`;
-  if (amount < 0) return formatINR(amount); // already prefixed "-"
+  if (amount < 0) return formatINR(amount);
   return formatINR(0);
 }
 
-function SettlementRow({ s }: { s: Settlement }) {
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function SectionTitle({ children }: { children: string }) {
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        fontSize: 30,
-        height: "100%",
-        minWidth: 0,
+        alignSelf: "center",
+        justifySelf: "center",
+        minWidth: 265,
+        height: 48,
+        padding: "0 28px",
+        borderRadius: 18,
+        border: `2px solid ${LINE}`,
+        background:
+          "linear-gradient(180deg, rgba(12, 96, 62, 0.98), rgba(2, 52, 39, 0.98))",
+        boxShadow:
+          "0 8px 18px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.16)",
+        color: WHITE,
+        fontSize: 31,
+        fontWeight: 900,
+        letterSpacing: "0",
+        lineHeight: "44px",
+        textAlign: "center",
+        textShadow: "0 3px 0 rgba(0, 0, 0, 0.45)",
+        zIndex: 2,
+        whiteSpace: "nowrap",
       }}
     >
-      <span
-        style={{
-          color: "#ef4444",
-          fontWeight: 700,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: 160,
-        }}
-      >
-        {s.from}
-      </span>
-      <span
-        style={{
-          color: "rgba(233, 196, 106, 0.9)",
-          fontWeight: 700,
-          fontSize: 26,
-          flexShrink: 0,
-          lineHeight: 1,
-        }}
-      >
-        →
-      </span>
-      <span
-        style={{
-          color: "#22c55e",
-          fontWeight: 700,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: 160,
-        }}
-      >
-        {s.to}
-      </span>
-      <span
-        style={{
-          marginLeft: "auto",
-          color: "#e9c46a",
-          fontWeight: 800,
-          fontVariantNumeric: "tabular-nums",
-          flexShrink: 0,
-        }}
-      >
-        {formatINR(s.amount)}
-      </span>
+      {children}
     </div>
   );
 }
 
-/**
- * Exportable summary card — fixed 1080×1920 with proportional flex-grow
- * sections that always fill the canvas top-to-bottom.
- *
- * Layout proportions (by `flex` value; sums to 100):
- *   Header 10  · Summary 12  · Table 40  · Settlements 33  · Footer 5
- *
- * Internally:
- *   - Table rows share the table's allocated height equally.
- *   - Settlements are ALWAYS in a 2-column grid with rows that share height.
- */
+function ChipStack({
+  left,
+  right,
+  top,
+  bottom,
+  scale = 1,
+}: {
+  left?: number;
+  right?: number;
+  top?: number;
+  bottom?: number;
+  scale?: number;
+}) {
+  const chip = (
+    color: string,
+    x: number,
+    y: number,
+    size: number,
+    layers: number,
+  ) => (
+    <div
+      style={{
+        position: "absolute",
+        left: x * scale,
+        top: y * scale,
+        width: size * scale,
+        height: size * scale,
+      }}
+    >
+      {Array.from({ length: layers }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: i * 9 * scale,
+            width: size * scale,
+            height: size * 0.42 * scale,
+            borderRadius: "50%",
+            background: `linear-gradient(90deg, ${color}, #ffffff 18%, ${color} 34%, ${color} 66%, #ffffff 82%, ${color})`,
+            border: `${2 * scale}px solid rgba(255, 255, 255, 0.45)`,
+            boxShadow: "0 5px 9px rgba(0, 0, 0, 0.35)",
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left,
+        right,
+        top,
+        bottom,
+        width: 205 * scale,
+        height: 160 * scale,
+        pointerEvents: "none",
+        zIndex: 1,
+      }}
+    >
+      {chip("#1f9d55", 0, 28, 68, 7)}
+      {chip("#d73535", 70, 0, 74, 6)}
+      {chip("#2676c9", 128, 42, 76, 7)}
+    </div>
+  );
+}
+
+function CornerCards() {
+  const card = (
+    label: string,
+    suit: string,
+    color: string,
+    rotate: number,
+    x: number,
+    y: number,
+  ) => (
+    <div
+      style={{
+        position: "absolute",
+        right: x,
+        top: y,
+        width: 70,
+        height: 100,
+        borderRadius: 9,
+        background: "#f8f8f4",
+        color,
+        transform: `rotate(${rotate}deg)`,
+        boxShadow: "0 8px 16px rgba(0, 0, 0, 0.42)",
+        border: "1px solid rgba(0, 0, 0, 0.12)",
+        fontWeight: 900,
+        fontSize: 25,
+        lineHeight: 1,
+        padding: "10px 9px",
+        boxSizing: "border-box",
+      }}
+    >
+      <div>{label}</div>
+      <div style={{ marginTop: 4 }}>{suit}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ position: "absolute", right: 26, top: 24, zIndex: 1 }}>
+      {card("A", "♥", "#c5162f", 8, 48, 0)}
+      {card("A", "♠", "#111827", 15, 0, 6)}
+    </div>
+  );
+}
+
+function MiniAvatar({ name, size }: { name: string; size: number }) {
+  return (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: avatarColor(name),
+        border: "2px solid rgba(255, 255, 255, 0.38)",
+        boxShadow: "0 3px 8px rgba(0, 0, 0, 0.42)",
+        color: WHITE,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        fontSize: Math.round(size * 0.34),
+        fontWeight: 900,
+        textShadow: "0 1px 2px rgba(0, 0, 0, 0.6)",
+      }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
 const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
   function SummaryCard({ results, settlements, totalPot }, ref) {
+    const playerCount = Math.max(results.length, 1);
+    const settlementCount = Math.max(settlements.length, 1);
     const topWinner =
       [...results]
         .filter((r) => r.profitLoss > 0)
         .sort((a, b) => b.profitLoss - a.profitLoss)[0] ?? null;
-
-    // Dynamic body font size — start with the max so the SSR'd HTML matches
-    // what a fast capture would expect, then refine on the client.
-    const [bodyFontSize, setBodyFontSize] = useState<number>(TABLE_FONT_MAX);
-    useEffect(() => {
-      const compute = () => setBodyFontSize(pickBodyFontSize(results));
-      // Wait for fonts so canvas measurements use the right metrics.
-      if (
-        typeof document !== "undefined" &&
-        document.fonts &&
-        document.fonts.ready
-      ) {
-        document.fonts.ready.then(compute).catch(compute);
-      } else {
-        compute();
-      }
-    }, [results]);
-
-    // 1 column when ≤4 settlements; 2 columns when more.
-    const useTwoCol = settlements.length > 4;
-    const half = useTwoCol
-      ? Math.ceil(settlements.length / 2)
-      : settlements.length;
-    const colA = settlements.slice(0, half);
-    const colB = useTwoCol ? settlements.slice(half) : [];
-    const rowsCount = Math.max(colA.length, colB.length, 1);
+    const pressure = Math.max(playerCount - 8, settlementCount - 8, 0);
+    const outerPadding = clamp(42 - pressure * 4, 32, 42);
+    const gap = clamp(18 - pressure * 2, 14, 18);
+    const headerHeight = clamp(170 - pressure * 10, 136, 170);
+    const topWinnerBannerHeight = topWinner
+      ? clamp(150 - pressure * 8, 128, 150)
+      : 0;
+    const totalPotPanelHeight = clamp(158 - pressure * 8, 128, 158);
+    const sectionTitleHeight = 62;
+    const tableHeaderHeight = clamp(64 - pressure * 2, 58, 64);
+    const tableTopOffset = 22;
+    const tableRowHeight = clamp(
+      68 - Math.max(0, playerCount - 8) * 5 - pressure * 2,
+      52,
+      68,
+    );
+    const tableHeight =
+      sectionTitleHeight + tableHeaderHeight + tableRowHeight * playerCount;
+    const visiblePanels = topWinner ? 5 : 4;
+    const remainingHeight =
+      CARD_HEIGHT -
+      outerPadding * 2 -
+      headerHeight -
+      topWinnerBannerHeight -
+      tableTopOffset -
+      tableHeight -
+      totalPotPanelHeight -
+      gap * (visiblePanels - 1);
+    const settlementsHeight = Math.max(360, remainingHeight);
+    const rowFont = clamp(tableRowHeight * 0.48, 26, 34);
+    const headerFont = clamp(rowFont - 7, 19, 25);
+    const settlementRowHeight = Math.max(
+      44,
+      (settlementsHeight - sectionTitleHeight - 14) / settlementCount,
+    );
+    const settlementFont = clamp(settlementRowHeight * 0.46, 23, 34);
+    const titleFont = clamp(headerHeight * 0.42, 56, 70);
+    const subtitleFont = clamp(headerHeight * 0.2, 27, 34);
+    const winnerAmountFont = clamp(topWinnerBannerHeight * 0.5, 58, 78);
 
     return (
       <div
         ref={ref}
         style={{
-          width: 1080,
-          height: 1920,
-          padding: 48,
+          width: CARD_WIDTH,
+          height: CARD_HEIGHT,
+          padding: outerPadding,
           boxSizing: "border-box",
-          background:
-            "radial-gradient(ellipse at top, #173a2c 0%, #0c1b15 55%, #060d0a 100%)",
-          color: "#f3f4f6",
+          color: WHITE,
           fontFamily:
             'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
+          background:
+            "radial-gradient(circle at 50% -12%, rgba(33, 138, 92, 0.45), transparent 34%), radial-gradient(circle at 50% 110%, rgba(8, 63, 47, 0.8), transparent 36%), linear-gradient(180deg, #093b2b 0%, #03251d 45%, #001711 100%)",
           position: "relative",
           overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          gap,
+          textShadow: "0 3px 0 rgba(0, 0, 0, 0.5)",
         }}
       >
-        {/* Subtle decorative glows */}
         <div
           style={{
             position: "absolute",
-            top: -260,
-            right: -260,
-            width: 600,
-            height: 600,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(212, 167, 44, 0.18), transparent 70%)",
+            inset: 0,
+            backgroundImage:
+              "linear-gradient(45deg, rgba(255,255,255,0.025) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.025) 50%, rgba(255,255,255,0.025) 75%, transparent 75%, transparent), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.035), transparent 18%)",
+            backgroundSize: "18px 18px, 360px 360px",
+            opacity: 0.65,
             pointerEvents: "none",
           }}
         />
         <div
           style={{
             position: "absolute",
-            bottom: -260,
-            left: -260,
-            width: 540,
-            height: 540,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(34, 197, 94, 0.12), transparent 70%)",
+            inset: 16,
+            border: `2px solid rgba(255, 217, 90, 0.28)`,
+            borderRadius: 26,
             pointerEvents: "none",
           }}
         />
+        <ChipStack left={24} top={26} scale={pressure > 0 ? 0.75 : 0.9} />
+        <CornerCards />
 
-        {/* 1. HEADER (10%) */}
         <div
           style={{
-            flex: 10,
-            minHeight: 0,
+            height: headerHeight,
+            border: `2px solid ${LINE}`,
+            borderRadius: 22,
+            background:
+              "linear-gradient(180deg, rgba(4, 58, 41, 0.82), rgba(1, 36, 29, 0.82))",
+            boxShadow:
+              "inset 0 1px 0 rgba(255, 255, 255, 0.11), 0 8px 18px rgba(0, 0, 0, 0.3)",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "center",
             alignItems: "center",
-            textAlign: "center",
+            justifyContent: "center",
+            position: "relative",
+            zIndex: 2,
+            marginLeft: pressure > 0 ? 132 : 170,
+            marginRight: pressure > 0 ? 126 : 150,
           }}
         >
           <div
             style={{
-              fontSize: 18,
-              letterSpacing: "0.45em",
-              color: "rgba(233, 196, 106, 0.9)",
-              fontWeight: 700,
-              marginBottom: 6,
-            }}
-          >
-            ♠ ♥ ♦ ♣
-          </div>
-          <h1
-            style={{
-              fontSize: 64,
-              fontWeight: 900,
-              letterSpacing: "0.18em",
-              margin: 0,
-              lineHeight: 1,
-              background:
-                "linear-gradient(135deg, #fff8e1 0%, #e9c46a 50%, #c69423 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
+              fontSize: titleFont,
+              lineHeight: 0.95,
+              fontWeight: 1000,
+              letterSpacing: "0",
+              color: WHITE,
+              textShadow:
+                "0 4px 0 rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 255, 255, 0.12)",
+              whiteSpace: "nowrap",
             }}
           >
             GAME SUMMARY
-          </h1>
+          </div>
           <div
             style={{
-              fontSize: 18,
-              letterSpacing: "0.5em",
-              color: "rgba(255, 255, 255, 0.5)",
-              marginTop: 8,
-              fontWeight: 600,
+              marginTop: pressure > 0 ? 4 : 8,
+              color: GOLD,
+              fontSize: subtitleFont,
+              fontWeight: 900,
+              letterSpacing: "0",
+              whiteSpace: "nowrap",
             }}
           >
-            SESSION CLOSED
+            — SESSION CLOSED —
           </div>
         </div>
 
-        {/* 2. SUMMARY CARDS (12%) */}
-        <div
-          style={{
-            flex: 12,
-            minHeight: 0,
-            display: "grid",
-            gridTemplateColumns: topWinner ? "1.15fr 1fr" : "1fr",
-            gap: 18,
-          }}
-        >
-          {/* Total Pot */}
+        {topWinner && (
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: 4,
-              padding: "18px 26px",
-              borderRadius: 22,
+              height: topWinnerBannerHeight,
+              border: `2px solid ${LINE}`,
+              borderRadius: 20,
               background:
-                "linear-gradient(135deg, rgba(212, 167, 44, 0.22) 0%, rgba(212, 167, 44, 0.05) 100%)",
-              border: "1.5px solid rgba(233, 196, 106, 0.45)",
+                "linear-gradient(90deg, rgba(0, 33, 27, 0.92), rgba(9, 74, 50, 0.82), rgba(0, 33, 27, 0.92))",
               boxShadow:
-                "0 0 40px rgba(233, 196, 106, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
-              minWidth: 0,
+                "0 8px 18px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: pressure > 0 ? 24 : 34,
+              position: "relative",
+              zIndex: 2,
             }}
           >
             <div
               style={{
+                width: clamp(topWinnerBannerHeight * 0.64, 72, 88),
+                height: clamp(topWinnerBannerHeight * 0.64, 72, 88),
+                borderRadius: "50%",
+                border: `4px solid ${GOLD}`,
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 22,
-                  fontWeight: 900,
-                  color: "#0a0f0c",
-                  background:
-                    "linear-gradient(135deg, #f5d27e 0%, #c69423 100%)",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-                  flexShrink: 0,
-                }}
-              >
-                ₹
-              </div>
-              <div
-                style={{
-                  fontSize: 18,
-                  letterSpacing: "0.28em",
-                  color: "rgba(255, 255, 255, 0.6)",
-                  fontWeight: 600,
-                }}
-              >
-                TOTAL POT
-              </div>
-            </div>
-            <div
-              style={{
-                fontSize: 60,
-                fontWeight: 900,
-                color: "#e9c46a",
-                fontVariantNumeric: "tabular-nums",
-                lineHeight: 1.05,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              {formatINR(totalPot)}
-            </div>
-          </div>
-
-          {/* Biggest Winner */}
-          {topWinner && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
                 justifyContent: "center",
-                gap: 2,
-                padding: "18px 26px",
-                borderRadius: 22,
                 background:
-                  "linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.04) 100%)",
-                border: "1.5px solid rgba(34, 197, 94, 0.45)",
+                  "radial-gradient(circle at 35% 25%, #fff5a8, #d39a2c 58%, #7a4d10)",
+                color: "#3b2706",
+                fontSize: clamp(topWinnerBannerHeight * 0.34, 42, 52),
+                fontWeight: 1000,
                 boxShadow:
-                  "0 0 40px rgba(34, 197, 94, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
+                  "0 0 18px rgba(255, 217, 90, 0.4), inset 0 4px 8px rgba(255, 255, 255, 0.36)",
+                textShadow: "0 1px 0 rgba(255, 255, 255, 0.5)",
+              }}
+            >
+              🏆
+            </div>
+            <div
+              style={{
                 minWidth: 0,
+                maxWidth: 360,
               }}
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
+                  color: WHITE,
+                  fontSize: clamp(topWinnerBannerHeight * 0.23, 30, 38),
+                  fontWeight: 1000,
+                  letterSpacing: "0",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <div style={{ fontSize: 32, lineHeight: 1, flexShrink: 0 }}>
-                  🏆
-                </div>
-                <div
-                  style={{
-                    fontSize: 18,
-                    letterSpacing: "0.28em",
-                    color: "rgba(255, 255, 255, 0.6)",
-                    fontWeight: 600,
-                  }}
-                >
-                  BIGGEST WINNER
-                </div>
+                TOP WINNER
               </div>
               <div
                 style={{
-                  fontSize: 36,
-                  fontWeight: 800,
-                  color: "#f3f4f6",
-                  lineHeight: 1.1,
+                  color: WHITE,
+                  fontSize: clamp(topWinnerBannerHeight * 0.27, 34, 44),
+                  fontWeight: 1000,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -448,187 +436,182 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
               >
                 {topWinner.name}
               </div>
-              <div
-                style={{
-                  fontSize: 36,
-                  fontWeight: 900,
-                  color: "#22c55e",
-                  fontVariantNumeric: "tabular-nums",
-                  lineHeight: 1.05,
-                }}
-              >
-                +{formatINR(topWinner.profitLoss)}
-              </div>
             </div>
-          )}
-        </div>
+            <div
+              style={{
+                color: GREEN,
+                fontSize: winnerAmountFont,
+                lineHeight: 1,
+                fontWeight: 1000,
+                fontVariantNumeric: "tabular-nums",
+                textShadow:
+                  "0 4px 0 rgba(0, 0, 0, 0.48), 0 0 18px rgba(92, 241, 111, 0.22)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              +{formatINR(topWinner.profitLoss)}
+            </div>
+          </div>
+        )}
 
-        {/* 3. PLAYER TABLE (40%) */}
         <div
           style={{
-            flex: 40,
-            minHeight: 0,
-            background: "rgba(10, 19, 15, 0.65)",
-            border: "1px solid rgba(255, 255, 255, 0.06)",
-            borderRadius: 22,
-            overflow: "hidden",
+            height: tableHeight,
+            border: `2px solid ${LINE}`,
+            borderRadius: 16,
+            background: PANEL,
+            boxShadow:
+              "0 8px 18px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
             display: "grid",
-            gridTemplateRows: "auto 1fr",
+            gridTemplateRows: `${sectionTitleHeight}px ${tableHeaderHeight}px 1fr`,
+            overflow: "hidden",
+            position: "relative",
+            zIndex: 2,
+            marginTop: tableTopOffset,
           }}
         >
-          {/* Table header */}
+          <SectionTitle>PROFIT / LOSS</SectionTitle>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.7fr 1fr 1fr 1.05fr",
-              padding: "14px 26px",
-              background: "rgba(23, 58, 44, 0.7)",
-              fontSize: 18,
+              gridTemplateColumns: "1.25fr 1fr 1.12fr 1.2fr",
+              alignItems: "center",
+              padding: "0 26px",
+              background: PANEL_DARK,
+              borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+              color: WHITE,
+              fontSize: headerFont,
+              fontWeight: 1000,
               textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              color: "rgba(255, 255, 255, 0.65)",
-              fontWeight: 700,
             }}
           >
-            <div>Player</div>
-            <div style={{ textAlign: "right" }}>Buy-in</div>
-            <div style={{ textAlign: "right" }}>Chips Left</div>
-            <div style={{ textAlign: "right" }}>P / L</div>
+            <div style={{ textAlign: "center" }}>Player</div>
+            <div style={{ textAlign: "center" }}>Buy-In</div>
+            <div style={{ textAlign: "center" }}>Chips Left</div>
+            <div style={{ textAlign: "center" }}>Profit / Loss</div>
           </div>
-
-          {/* Body — every player row gets equal share of remaining height */}
           <div
             style={{
               display: "grid",
-              gridTemplateRows: `repeat(${results.length}, 1fr)`,
+              gridTemplateRows: `repeat(${playerCount}, 1fr)`,
               minHeight: 0,
             }}
           >
-            {results.map((r, idx) => (
+            {results.length === 0 ? (
               <div
-                key={r.id}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.7fr 1fr 1fr 1.05fr",
-                  padding: "0 26px",
-                  fontSize: bodyFontSize,
-                  background:
-                    idx % 2 === 1
-                      ? "rgba(255, 255, 255, 0.025)"
-                      : "transparent",
+                  display: "flex",
                   alignItems: "center",
-                  borderTop:
-                    idx === 0 ? "none" : "1px solid rgba(255, 255, 255, 0.04)",
-                  minWidth: 0,
+                  justifyContent: "center",
+                  color: MUTED,
+                  fontSize: 30,
+                  fontWeight: 800,
                 }}
               >
+                No player results yet.
+              </div>
+            ) : (
+              results.map((r, idx) => (
                 <div
+                  key={r.id}
                   style={{
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: "1.25fr 1fr 1.12fr 1.2fr",
                     alignItems: "center",
-                    gap: 14,
                     minWidth: 0,
+                    padding: "0 26px",
+                    borderTop:
+                      idx === 0 ? "none" : "1px solid rgba(255, 255, 255, 0.14)",
+                    background:
+                      idx % 2 === 1
+                        ? "rgba(255, 255, 255, 0.035)"
+                        : "rgba(0, 0, 0, 0.05)",
+                    fontSize: rowFont,
+                    fontWeight: 900,
                   }}
                 >
                   <div
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: "50%",
-                      background: avatarColor(r.name),
-                      color: "#0a0f0c",
-                      fontSize: 18,
-                      fontWeight: 800,
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      boxShadow: "0 2px 6px rgba(0, 0, 0, 0.25)",
+                      gap: 12,
+                      minWidth: 0,
                     }}
                   >
-                    {initials(r.name)}
+                    <MiniAvatar name={r.name} size={clamp(rowFont + 14, 38, 50)} />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.name}
+                    </span>
                   </div>
-                  <span
+                  <div
                     style={{
-                      fontWeight: 600,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      textAlign: "center",
+                      fontVariantNumeric: "tabular-nums",
+                      color: WHITE,
                     }}
                   >
-                    {r.name}
-                  </span>
+                    {formatINR(r.totalBuyIn)}
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontVariantNumeric: "tabular-nums",
+                      color: WHITE,
+                    }}
+                  >
+                    {formatINR(r.chipsLeft)}
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontVariantNumeric: "tabular-nums",
+                      color:
+                        r.profitLoss > 0
+                          ? GREEN
+                          : r.profitLoss < 0
+                            ? RED
+                            : MUTED,
+                    }}
+                  >
+                    {signedINR(r.profitLoss)}
+                  </div>
                 </div>
-                <div
-                  style={{
-                    textAlign: "right",
-                    fontVariantNumeric: "tabular-nums",
-                    color: "rgba(255, 255, 255, 0.85)",
-                  }}
-                >
-                  {formatINR(r.totalBuyIn)}
-                </div>
-                <div
-                  style={{
-                    textAlign: "right",
-                    fontVariantNumeric: "tabular-nums",
-                    color: "rgba(255, 255, 255, 0.85)",
-                  }}
-                >
-                  {formatINR(r.chipsLeft)}
-                </div>
-                <div
-                  style={{
-                    textAlign: "right",
-                    fontVariantNumeric: "tabular-nums",
-                    fontWeight: 800,
-                    color:
-                      r.profitLoss > 0
-                        ? "#22c55e"
-                        : r.profitLoss < 0
-                          ? "#ef4444"
-                          : "rgba(255, 255, 255, 0.6)",
-                  }}
-                >
-                  {signedINR(r.profitLoss)}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
-        {/* 4. SETTLEMENTS (33%) — 2-column grid, every settlement visible */}
         <div
           style={{
-            flex: 33,
-            minHeight: 0,
-            background: "rgba(10, 19, 15, 0.65)",
-            border: "1px solid rgba(255, 255, 255, 0.06)",
-            borderRadius: 22,
-            padding: "18px 28px",
+            height: settlementsHeight,
+            border: `2px solid ${LINE}`,
+            borderRadius: 16,
+            background: PANEL,
+            boxShadow:
+              "0 8px 18px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
             display: "grid",
-            gridTemplateRows: "auto 1fr",
+            gridTemplateRows: `${sectionTitleHeight}px 1fr`,
+            overflow: "hidden",
+            position: "relative",
+            zIndex: 2,
           }}
         >
-          <div
-            style={{
-              fontSize: 26,
-              letterSpacing: "0.32em",
-              color: "rgba(255, 255, 255, 0.65)",
-              fontWeight: 700,
-              marginBottom: 10,
-            }}
-          >
-            SETTLEMENTS
-          </div>
-
+          <SectionTitle>SETTLEMENTS</SectionTitle>
           {settlements.length === 0 ? (
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "center",
+                color: MUTED,
                 fontSize: 30,
-                color: "rgba(255, 255, 255, 0.55)",
+                fontWeight: 900,
               }}
             >
               Everyone broke even. No payments needed.
@@ -637,69 +620,168 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: useTwoCol ? "1fr 1fr" : "1fr",
-                gridTemplateRows: `repeat(${rowsCount}, 1fr)`,
-                columnGap: 36,
+                gridTemplateRows: `repeat(${settlements.length}, 1fr)`,
                 minHeight: 0,
+                padding: "0 34px 14px",
               }}
             >
-              {Array.from({ length: rowsCount }).flatMap((_, i) => {
-                const cells = [
+              {settlements.map((s, idx) => (
+                <div
+                  key={`${s.from}-${s.to}-${s.amount}-${idx}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "36px minmax(0, 1fr) 66px minmax(0, 1fr) auto",
+                    alignItems: "center",
+                    columnGap: 16,
+                    borderTop:
+                      idx === 0 ? "none" : "1px solid rgba(255, 255, 255, 0.13)",
+                    color: WHITE,
+                    fontSize: settlementFont,
+                    fontWeight: 900,
+                    minWidth: 0,
+                  }}
+                >
                   <div
-                    key={`a-${i}`}
                     style={{
-                      borderTop:
-                        i === 0
-                          ? "none"
-                          : "1px solid rgba(255, 255, 255, 0.05)",
+                      color: GOLD,
+                      textAlign: "center",
+                      fontSize: settlementFont + 2,
+                    }}
+                  >
+                    •
+                  </div>
+                  <div
+                    style={{
                       display: "flex",
                       alignItems: "center",
+                      gap: 10,
                       minWidth: 0,
                     }}
                   >
-                    {colA[i] && <SettlementRow s={colA[i]} />}
-                  </div>,
-                ];
-                if (useTwoCol) {
-                  cells.push(
-                    <div
-                      key={`b-${i}`}
+                    <MiniAvatar name={s.from} size={clamp(settlementFont + 8, 30, 42)} />
+                    <span
                       style={{
-                        borderTop:
-                          i === 0
-                            ? "none"
-                            : "1px solid rgba(255, 255, 255, 0.05)",
-                        display: "flex",
-                        alignItems: "center",
-                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      {colB[i] && <SettlementRow s={colB[i]} />}
-                    </div>,
-                  );
-                }
-                return cells;
-              })}
+                      {s.from}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      color: "#8ef49b",
+                      fontSize: settlementFont + 12,
+                      fontWeight: 1000,
+                      textAlign: "center",
+                      lineHeight: 1,
+                    }}
+                  >
+                    →
+                  </div>
+                  <div
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.to}
+                  </div>
+                  <div
+                    style={{
+                      marginLeft: 12,
+                      color: GOLD,
+                      fontVariantNumeric: "tabular-nums",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {formatINR(s.amount)}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* 5. FOOTER (5%) */}
         <div
           style={{
-            flex: 5,
-            minHeight: 0,
-            display: "flex",
+            height: totalPotPanelHeight,
+            border: `2px solid ${LINE}`,
+            borderRadius: 18,
+            background:
+              "linear-gradient(135deg, rgba(2, 45, 33, 0.95), rgba(8, 32, 43, 0.96), rgba(43, 20, 56, 0.9))",
+            boxShadow:
+              "0 8px 20px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+            display: "grid",
+            gridTemplateColumns: "120px minmax(0, 1fr) auto",
             alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            fontSize: 18,
-            letterSpacing: "0.18em",
-            color: "rgba(255, 255, 255, 0.6)",
-            fontWeight: 600,
+            gap: 20,
+            padding: "14px 32px",
+            boxSizing: "border-box",
+            position: "relative",
+            zIndex: 2,
           }}
         >
-          SETTLE UP — ENJOYED THE GAME!  SEE YOU NEXT TIME! — Dhermesh
+          <ChipStack right={-8} bottom={-38} scale={0.55} />
+          <div
+            style={{
+              width: clamp(totalPotPanelHeight * 0.56, 74, 90),
+              height: clamp(totalPotPanelHeight * 0.56, 74, 90),
+              borderRadius: "50%",
+              border: `3px solid ${GOLD}`,
+              background:
+                "radial-gradient(circle at 35% 25%, #fff2a2, #c78d28 60%, #4b2f08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#372405",
+              fontSize: clamp(totalPotPanelHeight * 0.28, 38, 48),
+              fontWeight: 1000,
+              textShadow: "0 1px 0 rgba(255, 255, 255, 0.55)",
+              boxShadow: "0 0 18px rgba(255, 217, 90, 0.34)",
+            }}
+          >
+            ₹
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                color: GOLD,
+                fontSize: clamp(totalPotPanelHeight * 0.2, 26, 32),
+                fontWeight: 1000,
+                letterSpacing: "0",
+              }}
+            >
+              TOTAL POT
+            </div>
+            <div
+              style={{
+                marginTop: 2,
+                color: WHITE,
+                fontSize: clamp(totalPotPanelHeight * 0.2, 26, 32),
+                fontWeight: 1000,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              SESSION TOTAL
+            </div>
+          </div>
+          <div
+            style={{
+              color: GOLD,
+              fontSize: clamp(totalPotPanelHeight * 0.34, 44, 56),
+              fontWeight: 1000,
+              fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+              paddingRight: 178,
+            }}
+          >
+            {formatINR(totalPot)}
+          </div>
         </div>
       </div>
     );
