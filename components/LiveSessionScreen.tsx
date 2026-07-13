@@ -7,6 +7,7 @@ import { formatINR } from "@/lib/format";
 import { totalBuyIn } from "@/lib/settlement";
 import Button from "./Button";
 import Card from "./Card";
+import ConfirmDialog from "./ConfirmDialog";
 
 const QUICK_AMOUNTS = [1000, 2000, 4000, 5000];
 
@@ -24,14 +25,27 @@ export default function LiveSessionScreen({
   );
   const [newPlayerName, setNewPlayerName] = useState("");
   const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [pendingBuyIn, setPendingBuyIn] = useState<{
+    playerId: string;
+    amount: number;
+  } | null>(null);
 
   const totalPot = session.players.reduce(
     (sum, p) => sum + totalBuyIn(p),
     0,
   );
 
+  /** Queue a buy-in for confirmation via the in-app dialog. */
   function addBuyIn(playerId: string, amount: number) {
     if (amount <= 0) return;
+    if (!session.players.some((p) => p.id === playerId)) return;
+    setPendingBuyIn({ playerId, amount });
+  }
+
+  /** Actually apply the queued buy-in after the user confirms. */
+  function confirmPendingBuyIn() {
+    if (!pendingBuyIn) return;
+    const { playerId, amount } = pendingBuyIn;
     setSession((s) => ({
       ...s,
       players: s.players.map((p) =>
@@ -46,6 +60,9 @@ export default function LiveSessionScreen({
           : p,
       ),
     }));
+    // Clear the custom input for that player (in case that's how it was added)
+    setCustomByPlayer((m) => ({ ...m, [playerId]: "" }));
+    setPendingBuyIn(null);
   }
 
   function removeBuyIn(playerId: string, buyInId: string) {
@@ -99,7 +116,8 @@ export default function LiveSessionScreen({
     const amount = Number(raw);
     if (!Number.isFinite(amount) || amount <= 0) return;
     addBuyIn(playerId, Math.round(amount));
-    setCustomByPlayer((m) => ({ ...m, [playerId]: "" }));
+    // Note: custom input is cleared inside confirmPendingBuyIn so that
+    // canceling the confirmation keeps the amount in the input.
   }
 
   return (
@@ -308,6 +326,23 @@ export default function LiveSessionScreen({
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingBuyIn !== null}
+        title="Confirm buy-in"
+        message={
+          pendingBuyIn
+            ? `Add ${formatINR(pendingBuyIn.amount)} buy-in for ${
+                session.players.find((p) => p.id === pendingBuyIn.playerId)
+                  ?.name ?? "this player"
+              }?`
+            : ""
+        }
+        confirmLabel="Add buy-in"
+        cancelLabel="Cancel"
+        onConfirm={confirmPendingBuyIn}
+        onCancel={() => setPendingBuyIn(null)}
+      />
     </div>
   );
 }

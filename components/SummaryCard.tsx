@@ -783,6 +783,26 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
             {formatINR(totalPot)}
           </div>
         </div>
+
+        {/* Watermark — absolutely positioned so it never disturbs the layout math */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 14,
+            textAlign: "center",
+            fontSize: 18,
+            letterSpacing: "0.32em",
+            color: "rgba(255, 217, 90, 0.7)",
+            fontWeight: 700,
+            zIndex: 3,
+            pointerEvents: "none",
+            textShadow: "0 1px 2px rgba(0, 0, 0, 0.5)",
+          }}
+        >
+          pokeresh.com
+        </div>
       </div>
     );
   },
