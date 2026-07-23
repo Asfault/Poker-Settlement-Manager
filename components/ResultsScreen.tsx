@@ -73,13 +73,46 @@ export default function ResultsScreen({
           height: `${SUMMARY_HEIGHT}px`,
         },
       });
+
+      const date = new Date(session.startedAt).toISOString().slice(0, 10);
+      const filename = `poker-night-${date}.png`;
+
+      // Turn the data URL into a real File so it can either be shared via
+      // the iOS/Android system share sheet or downloaded on desktop.
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], filename, { type: "image/png" });
+
+      // Prefer Web Share API on mobile — iOS Safari blocks `<a download>` for
+      // data URLs post iOS 17, but supports navigator.share with files.
+      const canShareFiles =
+        typeof navigator !== "undefined" &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] });
+
+      if (canShareFiles) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "Poker Night Summary",
+          });
+          return;
+        } catch (err) {
+          // User cancelled the share sheet — don't fall through to download.
+          if ((err as DOMException)?.name === "AbortError") return;
+          // Any other share failure: fall through to the download fallback.
+        }
+      }
+
+      // Fallback: object URL + <a download>. Works on desktop browsers.
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      const date = new Date(session.startedAt)
-        .toISOString()
-        .slice(0, 10);
-      link.download = `poker-night-${date}.png`;
-      link.href = dataUrl;
+      link.download = filename;
+      link.href = objectUrl;
+      link.rel = "noopener";
+      document.body.appendChild(link);
       link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
     } catch (err) {
       setExportError(
         err instanceof Error ? err.message : "Failed to export image",
@@ -200,7 +233,7 @@ export default function ResultsScreen({
               onClick={exportPng}
               disabled={exporting}
             >
-              {exporting ? "Exporting…" : "Download PNG"}
+              {exporting ? "Preparing…" : "Save / Share PNG"}
             </Button>
           </div>
           <p className="text-white/50 text-xs mb-3">

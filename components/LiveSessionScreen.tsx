@@ -121,7 +121,7 @@ export default function LiveSessionScreen({
   }
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:py-10 pb-32">
+    <div className="min-h-screen px-4 py-6 sm:py-10 pb-10">
       <div className="max-w-2xl mx-auto">
         <header className="mb-5">
           <h1 className="text-xl font-bold">Live Session</h1>
@@ -310,11 +310,9 @@ export default function LiveSessionScreen({
               </Card>
             );
           })}
-        </div>
-      </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-felt-900 via-felt-900/95 to-transparent">
-        <div className="max-w-2xl mx-auto">
+          {/* Session Over sits at the end of the same flex-col so it gets the
+              same 16px gap-4 spacing above it that separates the player cards. */}
           <Button
             size="lg"
             variant="danger"
