@@ -91,10 +91,9 @@ export default function ResultsScreen({
 
       if (canShareFiles) {
         try {
-          await navigator.share({
-            files: [file],
-            title: "Poker Night Summary",
-          });
+          // Only pass `files` — omitting `title` / `text` avoids WhatsApp
+          // pre-filling the message caption with the app title.
+          await navigator.share({ files: [file] });
           return;
         } catch (err) {
           // User cancelled the share sheet — don't fall through to download.
