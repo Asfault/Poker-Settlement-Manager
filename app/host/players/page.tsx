@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RosterPlayer,
   createPlayer,
@@ -9,10 +9,10 @@ import {
   updatePlayer,
   uploadPlayerPhoto,
 } from "@/lib/db/players";
-import { toSquareJpeg } from "@/lib/image";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import PlayerAvatar from "@/components/host/PlayerAvatar";
+import PhotoCropper from "@/components/host/PhotoCropper";
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<RosterPlayer[]>([]);
@@ -21,6 +21,9 @@ export default function PlayersPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<RosterPlayer | null>(null);
   const [adding, setAdding] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -37,21 +40,85 @@ export default function PlayersPage() {
     refresh();
   }, [refresh]);
 
-  const visible = players.filter((p) => showArchived || p.is_active);
-  const archivedCount = players.filter((p) => !p.is_active).length;
+  // Search matches either the real name or the nickname.
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return players;
+    return players.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.nickname ?? "").toLowerCase().includes(q),
+    );
+  }, [players, query]);
+
+  const active = matches.filter((p) => p.is_active);
+  const archived = matches.filter((p) => !p.is_active);
+  const archivedCount = archived.length;
 
   return (
     <div className="px-4 py-6 pb-24">
       <div className="max-w-3xl mx-auto">
-        <header className="flex items-end justify-between mb-5 gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Players</h1>
-            <p className="text-white/50 text-sm">
-              {players.filter((p) => p.is_active).length} active
-              {archivedCount > 0 && ` · ${archivedCount} archived`}
-            </p>
-          </div>
-          <Button onClick={() => setAdding(true)}>+ Add player</Button>
+        <header className="flex items-center justify-between mb-5 gap-2">
+          {searchOpen ? (
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setQuery("");
+                    setSearchOpen(false);
+                  }
+                }}
+                placeholder="Search players…"
+                autoFocus
+                className="flex-1 min-w-0 bg-felt-900 border border-white/10 rounded-xl px-4 py-2 text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500"
+              />
+              <button
+                onClick={() => {
+                  setQuery("");
+                  setSearchOpen(false);
+                }}
+                className="text-white/50 hover:text-white text-sm px-2 shrink-0"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold">Players</h1>
+                <p className="text-white/50 text-sm">
+                  {players.filter((p) => p.is_active).length} active
+                  {players.filter((p) => !p.is_active).length > 0 &&
+                    ` · ${players.filter((p) => !p.is_active).length} archived`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Search players"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 text-white/60 hover:text-white hover:border-white/25 transition-colors"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="M20 20l-3.5-3.5" />
+                  </svg>
+                </button>
+                <Button onClick={() => setAdding(true)}>+ Add</Button>
+              </div>
+            </>
+          )}
         </header>
 
         {error && (
@@ -62,7 +129,7 @@ export default function PlayersPage() {
 
         {loading ? (
           <p className="text-white/40 text-sm py-10 text-center">Loading…</p>
-        ) : visible.length === 0 ? (
+        ) : players.length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-white/50 text-sm mb-4">
               No players yet. Add your regulars once and you&apos;ll never type
@@ -70,49 +137,42 @@ export default function PlayersPage() {
             </p>
             <Button onClick={() => setAdding(true)}>Add your first player</Button>
           </Card>
+        ) : matches.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-white/50 text-sm">
+              No players match &ldquo;{query}&rdquo;.
+            </p>
+          </Card>
         ) : (
-          <div className="flex flex-col gap-2">
-            {visible.map((p) => (
-              <Card
-                key={p.id}
-                className={`p-3 flex items-center gap-3 ${
-                  p.is_active ? "" : "opacity-50"
-                }`}
-              >
-                <PlayerAvatar name={p.name} photoUrl={p.photo_url} size={48} />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold truncate">
-                    {p.nickname?.trim() || p.name}
-                  </div>
-                  {p.nickname?.trim() && (
-                    <div className="text-white/40 text-xs truncate">
-                      {p.name}
-                    </div>
-                  )}
-                </div>
-                {!p.is_active && (
-                  <span className="text-white/40 text-xs shrink-0">
-                    Archived
-                  </span>
-                )}
-                <button
-                  onClick={() => setEditing(p)}
-                  className="text-white/50 hover:text-white text-sm shrink-0 px-2"
-                >
-                  Edit
-                </button>
-              </Card>
-            ))}
-          </div>
-        )}
+          <>
+            {/* Active players */}
+            <div className="flex flex-col gap-2">
+              {active.map((p) => (
+                <PlayerRow key={p.id} player={p} onEdit={setEditing} />
+              ))}
+            </div>
 
-        {archivedCount > 0 && (
-          <button
-            onClick={() => setShowArchived((v) => !v)}
-            className="w-full text-center text-white/40 hover:text-white/70 text-sm mt-5"
-          >
-            {showArchived ? "Hide archived" : `Show ${archivedCount} archived`}
-          </button>
+            {/* Archived, collapsed by default, always below the toggle */}
+            {archivedCount > 0 && (
+              <>
+                <button
+                  onClick={() => setShowArchived((v) => !v)}
+                  className="w-full text-center text-white/40 hover:text-white/70 text-sm mt-5 mb-2"
+                >
+                  {showArchived
+                    ? "Hide archived"
+                    : `Show ${archivedCount} archived`}
+                </button>
+                {showArchived && (
+                  <div className="flex flex-col gap-2">
+                    {archived.map((p) => (
+                      <PlayerRow key={p.id} player={p} onEdit={setEditing} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
 
@@ -134,6 +194,45 @@ export default function PlayersPage() {
   );
 }
 
+function PlayerRow({
+  player,
+  onEdit,
+}: {
+  player: RosterPlayer;
+  onEdit: (p: RosterPlayer) => void;
+}) {
+  return (
+    <Card
+      className={`p-3 flex items-center gap-3 ${
+        player.is_active ? "" : "opacity-50"
+      }`}
+    >
+      <PlayerAvatar
+        name={player.name}
+        photoUrl={player.photo_url}
+        size={48}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold truncate">{player.name}</div>
+        {player.nickname?.trim() && (
+          <div className="text-white/40 text-xs truncate">
+            {player.nickname}
+          </div>
+        )}
+      </div>
+      {!player.is_active && (
+        <span className="text-white/40 text-xs shrink-0">Archived</span>
+      )}
+      <button
+        onClick={() => onEdit(player)}
+        className="text-white/50 hover:text-white text-sm shrink-0 px-2"
+      >
+        Edit
+      </button>
+    </Card>
+  );
+}
+
 function PlayerEditor({
   player,
   onClose,
@@ -151,6 +250,7 @@ function PlayerEditor({
   );
   const [pendingPhoto, setPendingPhoto] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -161,18 +261,20 @@ function PlayerEditor({
     };
   }, [preview]);
 
-  async function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+  function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
-    try {
-      const blob = await toSquareJpeg(file);
-      setPendingPhoto(blob);
-      if (preview) URL.revokeObjectURL(preview);
-      setPreview(URL.createObjectURL(blob));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not read that image");
-    }
+    setCropFile(file);
+    // Reset so picking the same file twice still fires onChange.
+    e.target.value = "";
+  }
+
+  function applyCrop(blob: Blob) {
+    setPendingPhoto(blob);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(URL.createObjectURL(blob));
+    setCropFile(null);
   }
 
   async function save() {
@@ -273,7 +375,7 @@ function PlayerEditor({
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/*"
             onChange={pickPhoto}
             className="hidden"
           />
@@ -349,6 +451,14 @@ function PlayerEditor({
           </div>
         )}
       </div>
+
+      {cropFile && (
+        <PhotoCropper
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onDone={applyCrop}
+        />
+      )}
     </div>
   );
 }

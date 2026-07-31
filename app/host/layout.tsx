@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const NAV = [
   { href: "/host", label: "Home" },
@@ -24,6 +24,10 @@ export default function HostLayout({
   // Client-side guard. The real security boundary is Supabase RLS —
   // this just keeps the UI from flashing protected screens.
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      router.replace("/login");
+      return;
+    }
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
