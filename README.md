@@ -2,7 +2,7 @@
 
 A clean, browser-only web app for managing poker night settlements. Track
 buy-ins, validate the final chip count, calculate minimal-transaction
-settlements, and export a WhatsApp-friendly summary card along with settlement instructions as PNG.
+settlements, and export a WhatsApp-friendly summary card as PNG.
 
 ## Features
 

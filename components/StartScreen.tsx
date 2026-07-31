@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Button from "./Button";
 
 export default function StartScreen({
@@ -33,6 +34,13 @@ export default function StartScreen({
             New Session
           </Button>
         </div>
+
+        <Link
+          href="/login"
+          className="inline-block mt-10 text-white/30 hover:text-white/60 text-sm transition-colors"
+        >
+          Host login
+        </Link>
       </div>
     </div>
   );
