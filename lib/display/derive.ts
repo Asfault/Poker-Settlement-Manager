@@ -48,6 +48,8 @@ export interface LifetimeRow {
   /** Newest first: +1 win, -1 loss, 0 even. */
   form: number[];
   currentStreak: { kind: "win" | "loss" | "none"; length: number };
+  /** False once archived — keeps them out of the filler pool. */
+  isActive: boolean;
 }
 
 export interface GroupFacts {
@@ -192,6 +194,7 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
           totalBuyInCount: 0,
           form: [],
           currentStreak: { kind: "none", length: 0 },
+          isActive: true,
         };
         map.set(p.player_id, e);
       }
@@ -199,6 +202,7 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
       e.name = p.name;
       e.displayName = nameOf(p);
       e.photoUrl = p.photo_url;
+      e.isActive = p.is_active !== false;
       e.sessions += 1;
       e.totalProfitLoss += pl;
       e.totalBuyIn += p.total_buy_in;

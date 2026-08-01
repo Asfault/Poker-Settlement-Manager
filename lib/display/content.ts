@@ -44,6 +44,12 @@ export interface Card {
   photoUrl?: string | null;
   /** Higher wins when several triggers fire at once. */
   priority?: number;
+  /**
+   * When the event behind this alert happened. Anything that can't get on
+   * screen soon after is dropped rather than queued — "Ram is on tilt" ten
+   * minutes late is just confusing.
+   */
+  at?: number;
 }
 
 const WEEKDAY = [
@@ -70,6 +76,12 @@ export function triggeredCards(d: Derived): Card[] {
   const live = d.live;
   if (!live) return out;
 
+  /** Most recent buy-in across the table — the "now" for table-wide alerts. */
+  const lastAny = Math.max(
+    0,
+    ...live.rows.map((r) => r.lastBuyInAt ?? 0),
+  );
+
   // On tilt. The id is keyed on when the episode began, not the buy-in
   // count, so reloading a third and fourth time doesn't re-fire the alert.
   for (const r of live.rows) {
@@ -82,6 +94,7 @@ export function triggeredCards(d: Derived): Card[] {
         tone: "loss",
         photoUrl: r.characterUrl ?? r.photoUrl,
         priority: 100,
+        at: r.tiltStartedAt,
       });
     }
   }
@@ -98,6 +111,37 @@ export function triggeredCards(d: Derived): Card[] {
       tone: "gold",
       photoUrl: deepest.characterUrl ?? deepest.photoUrl,
       priority: 70,
+      at: deepest.lastBuyInAt ?? undefined,
+    });
+  }
+
+  // Cards are in the air.
+  const totalBuyIns = live.rows.reduce((s, r) => s + r.buyInCount, 0);
+  if (totalBuyIns >= 1) {
+    out.push({
+      id: `underway-${live.sessionId}`,
+      kind: "alert",
+      title: "WE'RE UNDERWAY",
+      body: `${live.playerCount} at the table. Good luck.`,
+      tone: "gold",
+      priority: 40,
+      at: live.startedAt,
+    });
+  }
+
+  // First person to go back in.
+  const reloaded = live.rows.filter((r) => r.buyInCount > 1);
+  if (reloaded.length === 1) {
+    const first = reloaded[0];
+    out.push({
+      id: `first-rebuy-${live.sessionId}`,
+      kind: "alert",
+      title: "FIRST REBUY OF THE NIGHT",
+      body: `${first.displayName} is back in for more.`,
+      tone: "loss",
+      photoUrl: first.characterUrl ?? first.photoUrl,
+      priority: 65,
+      at: first.lastBuyInAt ?? undefined,
     });
   }
 
@@ -111,6 +155,7 @@ export function triggeredCards(d: Derived): Card[] {
       body: "And climbing.",
       tone: "gold",
       priority: 60,
+      at: lastAny || undefined,
     });
   }
 
@@ -127,6 +172,7 @@ export function triggeredCards(d: Derived): Card[] {
       tone: "win",
       photoUrl: rock.characterUrl ?? rock.photoUrl,
       priority: 50,
+      at: lastAny || undefined,
     });
   }
 
@@ -139,7 +185,15 @@ export function triggeredCards(d: Derived): Card[] {
 
 export function fillerCards(d: Derived): Card[] {
   const out: Card[] = [];
-  const { lifetime, group, live } = d;
+  const { group, live } = d;
+
+  // Archived players keep their place in the leaderboard and in history,
+  // but stop generating facts — nobody wants nightly trivia about someone
+  // who stopped coming.
+  const activeIds = new Set(live?.rows.map((r) => r.playerId) ?? []);
+  const lifetime = d.lifetime.filter(
+    (p) => p.isActive || activeIds.has(p.playerId),
+  );
 
   // ---------- Tonight ----------
 

@@ -31,6 +31,13 @@ const RECENT_MEMORY = 8;
  * row fires a queue of them back to back and the board disappears.
  */
 const ALERT_COOLDOWN_MS = 90 * 1000;
+/**
+ * Alerts are about a moment. If one can't get on screen within this long of
+ * the event that caused it, it's discarded rather than queued — otherwise
+ * entering a batch of buy-ins produces a trickle of stale announcements for
+ * the next ten minutes.
+ */
+const ALERT_MAX_AGE_MS = 2 * 60 * 1000;
 const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
 const DRAWER_HOLD_MS = 2 * 60 * 1000; // stays open two minutes
 const DRAWER_FIRST_MS = DRAWER_EVERY_MS; // first one lands on the same cadence
@@ -153,18 +160,33 @@ export default function DisplayShell({
 
   useEffect(() => {
     if (!derived) return;
-    const candidates = triggeredCards(derived)
+    const t = Date.now();
+
+    const candidates = triggeredCards(derived).filter(
+      (c) => !firedIds.current.has(c.id),
+    );
+
+    // Burn anything whose moment has passed. Marking it fired means it
+    // never shows, rather than surfacing minutes after the fact.
+    for (const c of candidates) {
+      if (c.at !== undefined && t - c.at > ALERT_MAX_AGE_MS) {
+        firedIds.current.add(c.id);
+      }
+    }
+
+    const fresh = candidates
       .filter((c) => !firedIds.current.has(c.id))
       .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-    const next = candidates[0];
+
+    const next = fresh[0];
     if (!next) return;
 
-    // Hold anything queued behind the cooldown. It stays unfired, so it'll
-    // be picked up on a later pass rather than being lost.
-    if (Date.now() - lastAlertAt.current < ALERT_COOLDOWN_MS) return;
+    // One alert at a time. Anything still waiting when the gap ends only
+    // runs if it's still fresh — the check above sees to that.
+    if (t - lastAlertAt.current < ALERT_COOLDOWN_MS) return;
 
     firedIds.current.add(next.id);
-    lastAlertAt.current = Date.now();
+    lastAlertAt.current = t;
     show(next, ALERT_MS);
   }, [derived, show]);
 

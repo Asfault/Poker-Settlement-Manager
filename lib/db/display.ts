@@ -37,6 +37,8 @@ export interface DisplayHistoryPlayer {
   nickname: string | null;
   photo_url: string | null;
   character_url: string | null;
+  /** Archived players stay in the leaderboard but stop generating facts. */
+  is_active?: boolean;
   total_buy_in: number;
   chips_left: number;
   buy_in_count: number;
