@@ -252,6 +252,13 @@ function PlayerEditor({
   const [pendingPhoto, setPendingPhoto] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  // Character art is uploaded as-is — no crop, transparency preserved.
+  const [characterUrl, setCharacterUrl] = useState<string | null>(
+    player?.character_url ?? null,
+  );
+  const [pendingCharacter, setPendingCharacter] = useState<Blob | null>(null);
+  const [characterPreview, setCharacterPreview] = useState<string | null>(null);
+  const characterRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -262,6 +269,12 @@ function PlayerEditor({
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  useEffect(() => {
+    return () => {
+      if (characterPreview) URL.revokeObjectURL(characterPreview);
+    };
+  }, [characterPreview]);
 
   function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -279,6 +292,16 @@ function PlayerEditor({
     setCropFile(null);
   }
 
+  function pickCharacter(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setPendingCharacter(file);
+    if (characterPreview) URL.revokeObjectURL(characterPreview);
+    setCharacterPreview(URL.createObjectURL(file));
+    e.target.value = "";
+  }
+
   async function save() {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -290,9 +313,30 @@ function PlayerEditor({
         ? await createPlayer({ name: trimmed, nickname })
         : await updatePlayer(player.id, { name: trimmed, nickname });
 
+      const patch: Parameters<typeof updatePlayer>[1] = {};
+
       if (pendingPhoto) {
-        const url = await uploadPlayerPhoto(saved.id, pendingPhoto);
-        await updatePlayer(saved.id, { photo_url: url });
+        patch.photo_url = await uploadPlayerPhoto(
+          saved.id,
+          pendingPhoto,
+          "avatar",
+        );
+      } else if (photoUrl === null && player?.photo_url) {
+        patch.photo_url = null;
+      }
+
+      if (pendingCharacter) {
+        patch.character_url = await uploadPlayerPhoto(
+          saved.id,
+          pendingCharacter,
+          "character",
+        );
+      } else if (characterUrl === null && player?.character_url) {
+        patch.character_url = null;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await updatePlayer(saved.id, patch);
       }
       onSaved();
     } catch (err) {
@@ -376,6 +420,56 @@ function PlayerEditor({
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif,image/*"
             onChange={pickPhoto}
+            className="hidden"
+          />
+        </div>
+
+        {/* Caricature for the TV display — uploaded uncropped. */}
+        <div className="flex items-center gap-4 mb-4 pb-4 border-b border-white/5">
+          <div className="w-16 h-16 rounded-xl bg-felt-900 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+            {characterPreview ?? characterUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={(characterPreview ?? characterUrl) as string}
+                alt=""
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span className="text-white/20 text-2xl">🎭</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => characterRef.current?.click()}
+            >
+              {characterPreview ?? characterUrl
+                ? "Change character"
+                : "Add character"}
+            </Button>
+            {(characterPreview ?? characterUrl) && (
+              <button
+                onClick={() => {
+                  setPendingCharacter(null);
+                  setCharacterUrl(null);
+                  if (characterPreview) URL.revokeObjectURL(characterPreview);
+                  setCharacterPreview(null);
+                }}
+                className="text-white/40 hover:text-loss text-xs text-left px-1"
+              >
+                Remove
+              </button>
+            )}
+            <p className="text-white/30 text-[11px] leading-tight">
+              Transparent PNG for the TV table. Not cropped.
+            </p>
+          </div>
+          <input
+            ref={characterRef}
+            type="file"
+            accept="image/png,image/webp,image/*"
+            onChange={pickCharacter}
             className="hidden"
           />
         </div>

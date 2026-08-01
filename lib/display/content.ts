@@ -70,16 +70,17 @@ export function triggeredCards(d: Derived): Card[] {
   const live = d.live;
   if (!live) return out;
 
-  // On tilt — repeat buy-ins in a short window.
+  // On tilt. The id is keyed on when the episode began, not the buy-in
+  // count, so reloading a third and fourth time doesn't re-fire the alert.
   for (const r of live.rows) {
-    if (r.recentBuyIns >= 2) {
+    if (r.tilted && r.tiltStartedAt !== null) {
       out.push({
-        id: `tilt-${r.playerId}-${r.buyInCount}`,
+        id: `tilt-${r.playerId}-${r.tiltStartedAt}`,
         kind: "alert",
         title: `${r.displayName.toUpperCase()} IS ON TILT`,
         body: `${r.recentBuyIns} buy-ins in 15 minutes. Someone take the cards away.`,
         tone: "loss",
-        photoUrl: r.photoUrl,
+        photoUrl: r.characterUrl ?? r.photoUrl,
         priority: 100,
       });
     }

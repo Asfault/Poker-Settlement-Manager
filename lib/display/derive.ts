@@ -18,8 +18,15 @@ export interface LiveRow {
   totalBuyIn: number;
   buyInCount: number;
   lastBuyInAt: number | null;
-  /** Buy-ins in the last 15 minutes — drives the tilt alert. */
+  /** Buy-ins in the last 15 minutes. */
   recentBuyIns: number;
+  /** Showing the tilt aura right now. */
+  tilted: boolean;
+  /**
+   * When the current tilt episode began. Stable for the whole episode, so
+   * the alert fires once no matter how many more times they reload.
+   */
+  tiltStartedAt: number | null;
   isHost: boolean;
 }
 
@@ -67,7 +74,44 @@ export interface Derived {
   group: GroupFacts;
 }
 
-const TILT_WINDOW_MS = 15 * 60 * 1000;
+const TILT_WINDOW_MS = 15 * 60 * 1000; // two buy-ins this close starts it
+const TILT_HOLD_MS = 10 * 60 * 1000; // aura lasts this long after the last one
+
+/**
+ * Work out whether someone is currently on tilt.
+ *
+ * An episode starts on the second buy-in inside a 15-minute window, and
+ * runs for 10 minutes from the most recent buy-in. Reloading while already
+ * tilted pushes the end back rather than starting a fresh episode — which
+ * is what keeps the alert from firing again on the third and fourth.
+ */
+function tiltState(
+  times: number[],
+  now: number,
+): { tilted: boolean; startedAt: number | null } {
+  const s = [...times].sort((a, b) => a - b);
+  let expiry: number | null = null;
+  let episodeStart: number | null = null;
+
+  for (let i = 0; i < s.length; i += 1) {
+    const t = s[i];
+    if (expiry !== null && t <= expiry) {
+      // Reloaded mid-episode — extend it, keep the original start.
+      expiry = t + TILT_HOLD_MS;
+      continue;
+    }
+    // Previous episode (if any) has lapsed.
+    expiry = null;
+    episodeStart = null;
+    if (i > 0 && t - s[i - 1] <= TILT_WINDOW_MS) {
+      expiry = t + TILT_HOLD_MS;
+      episodeStart = t;
+    }
+  }
+
+  const tilted = expiry !== null && now <= expiry;
+  return { tilted, startedAt: tilted ? episodeStart : null };
+}
 
 function nameOf(p: { name: string; nickname: string | null }): string {
   return p.nickname?.trim() || p.name;
@@ -88,6 +132,7 @@ function deriveLive(payload: DisplayPayload, now: number): Derived["live"] {
   const rows: LiveRow[] = s.players.map((p: DisplayLivePlayer) => {
     const times = p.buy_ins.map((b) => new Date(b.at).getTime());
     const recent = times.filter((t) => now - t <= TILT_WINDOW_MS).length;
+    const tilt = tiltState(times, now);
     return {
       playerId: p.player_id,
       name: p.name,
@@ -98,6 +143,8 @@ function deriveLive(payload: DisplayPayload, now: number): Derived["live"] {
       buyInCount: p.buy_ins.length,
       lastBuyInAt: times.length ? Math.max(...times) : null,
       recentBuyIns: recent,
+      tilted: tilt.tilted,
+      tiltStartedAt: tilt.startedAt,
       isHost: p.player_id === s.host_player_id,
     };
   });

@@ -3,6 +3,7 @@
 import type { LiveRow } from "@/lib/display/derive";
 import { formatINR } from "@/lib/format";
 import DisplayAvatar from "./DisplayAvatar";
+import TiltAura from "./TiltAura";
 
 /**
  * The live board: characters seated around a felt oval.
@@ -126,17 +127,7 @@ export default function PokerTable({
           }}
         >
           <div className="flex items-end justify-center relative">
-            {row.recentBuyIns >= 2 && (
-              <div
-                className="absolute rounded-full animate-pulse"
-                style={{
-                  width: "120%",
-                  aspectRatio: "1",
-                  background:
-                    "radial-gradient(circle, rgba(239,68,68,0.5), transparent 70%)",
-                }}
-              />
-            )}
+            {row.tilted && <TiltAura scale={scale} />}
 
             {row.characterUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -147,10 +138,9 @@ export default function PokerTable({
                 style={{
                   height: `${10 * scale}vw`,
                   maxHeight: "22vh",
-                  filter:
-                    row.recentBuyIns >= 2
-                      ? "drop-shadow(0 0 1.5vw rgba(239,68,68,0.8))"
-                      : "drop-shadow(0 0.6vw 1.2vw rgba(0,0,0,0.55))",
+                  filter: row.tilted
+                    ? "drop-shadow(0 0 0.9vw rgba(255,230,120,0.55))"
+                    : "drop-shadow(0 0.6vw 1.2vw rgba(0,0,0,0.55))",
                 }}
               />
             ) : (
@@ -160,11 +150,7 @@ export default function PokerTable({
                   photoUrl={row.photoUrl}
                   size={90 * scale}
                   ring={
-                    row.isHost
-                      ? "rgba(233,196,106,0.8)"
-                      : row.recentBuyIns >= 2
-                        ? "#ef4444"
-                        : undefined
+                    row.isHost ? "rgba(233,196,106,0.8)" : undefined
                   }
                 />
               </div>
@@ -196,10 +182,13 @@ export default function PokerTable({
           >
             {formatINR(row.totalBuyIn)}
           </div>
-          {row.recentBuyIns >= 2 && (
+          {row.tilted && (
             <div
-              className="text-[#ef4444] font-black tracking-wider"
-              style={{ fontSize: `${1.05 * scale}vw` }}
+              className="text-[#ffe066] font-black tracking-wider"
+              style={{
+                fontSize: `${1.05 * scale}vw`,
+                textShadow: "0 0 0.6vw rgba(255,224,102,0.7)",
+              }}
             >
               ON TILT
             </div>

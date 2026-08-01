@@ -20,6 +20,37 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Tilt aura — two layers pulsing out of phase so the crackle feels alive */
+@keyframes tiltPulse {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+@keyframes tiltPulseAlt {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(1.04) rotate(0.5deg);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(0.97) rotate(-0.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="tiltPulse"] {
+    animation: none !important;
+  }
+}
+
 /* Subtle felt-table background */
 body::before {
   content: "";
