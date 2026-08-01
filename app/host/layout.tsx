@@ -11,6 +11,7 @@ const NAV = [
   { href: "/host/history", label: "History" },
   { href: "/host/stats", label: "Stats" },
   { href: "/host/display", label: "Display" },
+  { href: "/host/shared", label: "Wild" },
 ];
 
 export default function HostLayout({

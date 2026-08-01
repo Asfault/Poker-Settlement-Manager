@@ -16,10 +16,12 @@ const H = 1920;
 
 export default function HostResults({
   data,
-  onReopen,
+  onEditBuyIns,
+  onEditChips,
 }: {
   data: LoadedSession;
-  onReopen: () => void;
+  onEditBuyIns: () => void;
+  onEditChips: () => void;
 }) {
   const router = useRouter();
   const { session, players } = data;
@@ -29,6 +31,14 @@ export default function HostResults({
   const innerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Editing buy-ins can leave chips out of balance. Surface it rather than
+  // letting a broken session sit quietly in the stats.
+  const imbalance = useMemo(() => {
+    const buy = players.reduce((s, p) => s + sumBuyIns(p), 0);
+    const chips = players.reduce((s, p) => s + (p.chips_left ?? 0), 0);
+    return chips - buy;
+  }, [players]);
 
   const { rows, settlements, pot, feeTotal } = useMemo(() => {
     const r = computeNetRows(
@@ -146,6 +156,15 @@ export default function HostResults({
               )}`}
           </p>
         </header>
+
+        {imbalance !== 0 && (
+          <div className="mb-4 rounded-xl border border-loss/40 bg-loss/10 px-4 py-3 text-loss text-sm">
+            <span className="font-semibold">Chips don&apos;t tally.</span>{" "}
+            {imbalance > 0 ? "Over" : "Short"} by{" "}
+            {formatINR(Math.abs(imbalance))}. The settlements below won&apos;t
+            balance until this is fixed — tap Edit chips.
+          </div>
+        )}
 
         {/* Poker-only P/L */}
         <Card className="overflow-hidden mb-2">
@@ -352,7 +371,10 @@ export default function HostResults({
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-felt-900 via-felt-900/95 to-transparent">
         <div className="max-w-2xl mx-auto flex gap-2">
-          <Button size="lg" variant="secondary" onClick={onReopen}>
+          <Button size="lg" variant="secondary" onClick={onEditBuyIns}>
+            Edit buy-ins
+          </Button>
+          <Button size="lg" variant="secondary" onClick={onEditChips}>
             Edit chips
           </Button>
           <Button

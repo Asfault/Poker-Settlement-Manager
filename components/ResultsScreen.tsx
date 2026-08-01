@@ -9,6 +9,7 @@ import {
   calculateSettlements,
   computeResults,
 } from "@/lib/settlement";
+import { shareCompletedSession } from "@/lib/db/shared";
 import Button from "./Button";
 import Card from "./Card";
 import SummaryCard from "./SummaryCard";
@@ -25,6 +26,14 @@ export default function ResultsScreen({
   const previewInnerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Copy the finished session up so the app's author can see how it's
+  // being used. Fire-and-forget — never blocks or interrupts anything.
+  useEffect(() => {
+    shareCompletedSession(session);
+    // Only once per session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id]);
 
   // Keep the scaled preview fitting its wrapper width.
   useEffect(() => {
