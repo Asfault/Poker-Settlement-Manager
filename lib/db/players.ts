@@ -6,7 +6,10 @@ export interface RosterPlayer {
   id: string;
   name: string;
   nickname: string | null;
+  /** Square avatar — used everywhere in the app. */
   photo_url: string | null;
+  /** Transparent caricature — the display table only. */
+  character_url: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -69,7 +72,12 @@ export async function createPlayer(input: {
 
 export async function updatePlayer(
   id: string,
-  patch: Partial<Pick<RosterPlayer, "name" | "nickname" | "photo_url" | "is_active">>,
+  patch: Partial<
+    Pick<
+      RosterPlayer,
+      "name" | "nickname" | "photo_url" | "character_url" | "is_active"
+    >
+  >,
 ): Promise<RosterPlayer> {
   const clean: Record<string, unknown> = { ...patch };
   if (typeof clean.name === "string") clean.name = (clean.name as string).trim();
@@ -95,15 +103,21 @@ export async function deletePlayer(id: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Upload a square photo and return its public URL. */
+/**
+ * Upload a square photo and return its public URL.
+ * Honours the blob's own type so transparent PNGs stay PNG.
+ */
 export async function uploadPlayerPhoto(
   playerId: string,
   blob: Blob,
+  kind: "avatar" | "character" = "avatar",
 ): Promise<string> {
-  const path = `${playerId}-${Date.now()}.jpg`;
+  const type = blob.type || "image/jpeg";
+  const ext = type.includes("png") ? "png" : "jpg";
+  const path = `${playerId}-${kind}-${Date.now()}.${ext}`;
   const { error } = await supabase.storage
     .from("player-photos")
-    .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+    .upload(path, blob, { contentType: type, upsert: true });
   if (error) throw error;
   const { data } = supabase.storage.from("player-photos").getPublicUrl(path);
   return data.publicUrl;

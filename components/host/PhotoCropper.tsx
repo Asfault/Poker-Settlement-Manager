@@ -7,6 +7,14 @@ const VIEW = 280; // on-screen size of the crop viewport, px
 const OUTPUT = 400; // exported image size, px
 
 /**
+ * Formats that can carry transparency. Those get encoded back out as PNG so
+ * a cut-out avatar stays cut out; photos stay JPEG to keep the file small.
+ */
+function keepsAlpha(file: File): boolean {
+  return /image\/(png|webp|gif|svg)/i.test(file.type);
+}
+
+/**
  * Decode an image file to something drawable.
  * createImageBitmap handles more formats and applies EXIF rotation;
  * the <img> path is the fallback for older browsers.
@@ -61,6 +69,7 @@ export default function PhotoCropper({
   const [t, setT] = useState<Transform>({ zoom: 1, x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const alpha = keepsAlpha(file);
 
   const areaRef = useRef<HTMLDivElement>(null);
   // Active pointers, for drag + pinch.
@@ -106,7 +115,9 @@ export default function PhotoCropper({
         normalised.onerror = () => {
           if (!cancelled) setError("Could not read that image");
         };
-        normalised.src = canvas.toDataURL("image/jpeg", 0.92);
+        normalised.src = alpha
+          ? canvas.toDataURL("image/png")
+          : canvas.toDataURL("image/jpeg", 0.92);
       } catch {
         if (!cancelled) {
           setError(
@@ -244,7 +255,9 @@ export default function PhotoCropper({
       ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, OUTPUT, OUTPUT);
 
       const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.85),
+        alpha
+          ? canvas.toBlob(resolve, "image/png")
+          : canvas.toBlob(resolve, "image/jpeg", 0.85),
       );
       if (!blob) throw new Error("Could not encode image");
       onDone(blob);
@@ -255,7 +268,14 @@ export default function PhotoCropper({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    // stopPropagation matters: this renders inside the player editor's
+    // backdrop, which closes on click. Without it, dragging the image or
+    // tapping "Use photo" bubbles up and closes the editor mid-crop.
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+    >
       <div className="w-full max-w-sm rounded-2xl border border-gold-500/50 bg-felt-800 shadow-2xl p-5">
         <h2 className="text-lg font-bold mb-1">Position photo</h2>
         <p className="text-white/50 text-xs mb-4">

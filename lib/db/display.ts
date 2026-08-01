@@ -17,6 +17,7 @@ export interface DisplayLivePlayer {
   name: string;
   nickname: string | null;
   photo_url: string | null;
+  character_url: string | null;
   total_buy_in: number;
   buy_ins: DisplayBuyIn[];
 }
@@ -35,9 +36,12 @@ export interface DisplayHistoryPlayer {
   name: string;
   nickname: string | null;
   photo_url: string | null;
+  character_url: string | null;
   total_buy_in: number;
   chips_left: number;
   buy_in_count: number;
+  /** ISO timestamps — powers "when do they reload" style stats. */
+  buy_in_times?: string[];
 }
 
 export interface DisplayHistorySession {

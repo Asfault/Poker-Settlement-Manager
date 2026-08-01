@@ -18,12 +18,17 @@ import {
 } from "@/lib/display/content";
 import LiveBoard from "./LiveBoard";
 import ContentCard from "./ContentCard";
+import PlayerDrawer from "./PlayerDrawer";
+import { PlayerCard, buildPlayerCard, historyFor } from "@/lib/display/playerCard";
 
 const LIVE_POLL_MS = 1000; // buy-ins land on the TV within a second
 const HISTORY_POLL_MS = 5 * 60 * 1000; // safety net; also refetched on change
 const FILLER_MS = 15000;
 const ALERT_MS = 12000;
 const RECENT_MEMORY = 8;
+const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
+const DRAWER_HOLD_MS = 2 * 60 * 1000; // stays open two minutes
+const DRAWER_FIRST_MS = 3 * 60 * 1000; // first one shortly after the game starts
 
 export default function DisplayShell({
   password,
@@ -44,6 +49,13 @@ export default function DisplayShell({
   const firedIds = useRef<Set<string>>(new Set());
   const overlayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Player spotlight drawer — own schedule, suppresses filler while open.
+  const [drawer, setDrawer] = useState<PlayerCard | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const drawerOpen = useRef(false);
+  const drawerQueue = useRef<string[]>([]);
+  const drawerTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // ---------- History: large, rarely changes ----------
 
@@ -113,6 +125,15 @@ export default function DisplayShell({
     );
   }, [live, history, now]);
 
+  // Timers fire long after their closure was created — read through refs so
+  // they always see current data.
+  const derivedRef = useRef(derived);
+  const historyRef = useRef(history);
+  useEffect(() => {
+    derivedRef.current = derived;
+    historyRef.current = history;
+  }, [derived, history]);
+
   // ---------- Show a card ----------
 
   const show = useCallback((card: Card, ms: number) => {
@@ -135,6 +156,74 @@ export default function DisplayShell({
     show(next, ALERT_MS);
   }, [derived, show]);
 
+  // ---------- Player spotlight drawer ----------
+
+  useEffect(() => {
+    const rows = derived?.live?.rows;
+    const sessionId = derived?.live?.sessionId;
+    if (!rows || rows.length === 0 || !sessionId) return;
+
+    function clearTimers() {
+      drawerTimers.current.forEach(clearTimeout);
+      drawerTimers.current = [];
+    }
+
+    function openNext() {
+      const current = derivedRef.current;
+      const liveRows = current?.live?.rows ?? [];
+      if (liveRows.length === 0) return;
+
+      // Round-robin so everyone gets a turn before anyone repeats.
+      if (drawerQueue.current.length === 0) {
+        drawerQueue.current = liveRows.map((r) => r.playerId);
+      }
+      let id = drawerQueue.current.shift();
+      while (id && !liveRows.some((r) => r.playerId === id)) {
+        id = drawerQueue.current.shift();
+      }
+      const row = liveRows.find((r) => r.playerId === id) ?? liveRows[0];
+      if (!row || !current) return;
+
+      const card = buildPlayerCard(
+        current,
+        row,
+        historyFor(current, row.playerId, historyRef.current ?? []),
+      );
+
+      drawerOpen.current = true;
+      setDrawer(card);
+      // Mount first, then animate in on the next frame.
+      requestAnimationFrame(() => setDrawerVisible(true));
+
+      drawerTimers.current.push(
+        setTimeout(() => {
+          setDrawerVisible(false);
+          drawerTimers.current.push(
+            setTimeout(() => {
+              setDrawer(null);
+              drawerOpen.current = false;
+            }, 800),
+          );
+        }, DRAWER_HOLD_MS),
+      );
+
+      drawerTimers.current.push(setTimeout(openNext, DRAWER_EVERY_MS));
+    }
+
+    clearTimers();
+    drawerQueue.current = [];
+    drawerTimers.current.push(setTimeout(openNext, DRAWER_FIRST_MS));
+
+    return () => {
+      clearTimers();
+      setDrawerVisible(false);
+      setDrawer(null);
+      drawerOpen.current = false;
+    };
+    // Restart only when the session changes, not on every poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [derived?.live?.sessionId]);
+
   // ---------- Filler rotation ----------
 
   useEffect(() => {
@@ -149,7 +238,20 @@ export default function DisplayShell({
             scheduleNext();
             return cur;
           }
-          const pool = fillerCards(derived!);
+          // The drawer owns the screen while it's open — triggered alerts
+          // still interrupt, but filler waits its turn.
+          if (drawerOpen.current) {
+            scheduleNext();
+            return null;
+          }
+          // Read through the ref — this timer outlives its closure, so
+          // `derived` captured above would be minutes out of date.
+          const current = derivedRef.current;
+          if (!current) {
+            scheduleNext();
+            return null;
+          }
+          const pool = fillerCards(current);
           const pick = pickFiller(pool, recentIds.current);
           if (pick) {
             recentIds.current = [pick.id, ...recentIds.current].slice(
@@ -203,8 +305,10 @@ export default function DisplayShell({
         <LiveBoard derived={derived} now={now} />
       </div>
 
+      {drawer && <PlayerDrawer card={drawer} visible={drawerVisible} />}
+
       {overlay && (
-        <div className="absolute inset-0 p-[5vh_6vw] flex flex-col justify-center">
+        <div className="absolute inset-0 z-40 p-[5vh_6vw] flex flex-col justify-center bg-[#051911]/95">
           <ContentCard card={overlay} />
         </div>
       )}

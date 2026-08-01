@@ -44,16 +44,26 @@ export default function PlayerAvatar({
   size?: number;
 }) {
   if (photoUrl) {
+    // Coloured disc behind the photo so transparent PNGs have a backdrop
+    // instead of floating on the page. Opaque photos hide it entirely.
+    const bg = colorFor(name);
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={photoUrl}
-        alt={name}
-        width={size}
-        height={size}
-        style={{ width: size, height: size }}
-        className="rounded-full object-cover shrink-0 border border-white/10"
-      />
+      <span
+        style={{
+          width: size,
+          height: size,
+          background: `radial-gradient(circle at 50% 35%, ${bg}, ${bg}bb 60%, ${bg}66)`,
+        }}
+        className="rounded-full shrink-0 inline-block overflow-hidden border border-white/10"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photoUrl}
+          alt={name}
+          style={{ width: "100%", height: "100%" }}
+          className="object-cover"
+        />
+      </span>
     );
   }
 

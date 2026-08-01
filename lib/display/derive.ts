@@ -14,11 +14,13 @@ export interface LiveRow {
   name: string;
   displayName: string;
   photoUrl: string | null;
+  characterUrl: string | null;
   totalBuyIn: number;
   buyInCount: number;
   lastBuyInAt: number | null;
   /** Buy-ins in the last 15 minutes — drives the tilt alert. */
   recentBuyIns: number;
+  isHost: boolean;
 }
 
 export interface LifetimeRow {
@@ -91,10 +93,12 @@ function deriveLive(payload: DisplayPayload, now: number): Derived["live"] {
       name: p.name,
       displayName: nameOf(p),
       photoUrl: p.photo_url,
+      characterUrl: p.character_url ?? null,
       totalBuyIn: p.total_buy_in,
       buyInCount: p.buy_ins.length,
       lastBuyInAt: times.length ? Math.max(...times) : null,
       recentBuyIns: recent,
+      isHost: p.player_id === s.host_player_id,
     };
   });
 

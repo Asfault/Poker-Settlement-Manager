@@ -43,14 +43,27 @@ export default function DisplayAvatar({
   const border = ring ? `3px solid ${ring}` : "2px solid rgba(255,255,255,0.12)";
 
   if (photoUrl) {
+    // The photo sits on a coloured disc rather than directly on the felt.
+    // A cut-out PNG shows the colour through; an opaque photo covers it.
+    const bg = colorFor(name);
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={photoUrl}
-        alt={name}
-        style={{ width: size, height: size, border }}
-        className="rounded-full object-cover shrink-0"
-      />
+      <span
+        style={{
+          width: size,
+          height: size,
+          border,
+          background: `radial-gradient(circle at 50% 35%, ${bg}, ${bg}bb 60%, ${bg}66)`,
+        }}
+        className="rounded-full shrink-0 inline-block overflow-hidden relative"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photoUrl}
+          alt={name}
+          style={{ width: "100%", height: "100%" }}
+          className="object-cover"
+        />
+      </span>
     );
   }
 
