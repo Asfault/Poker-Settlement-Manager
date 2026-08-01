@@ -30,14 +30,14 @@ const RECENT_MEMORY = 8;
  * Minimum gap between alerts. Without this, entering several buy-ins in a
  * row fires a queue of them back to back and the board disappears.
  */
-const ALERT_COOLDOWN_MS = 90 * 1000;
+const ALERT_COOLDOWN_MS = 20 * 1000;
 /**
  * Alerts are about a moment. If one can't get on screen within this long of
  * the event that caused it, it's discarded rather than queued — otherwise
  * entering a batch of buy-ins produces a trickle of stale announcements for
  * the next ten minutes.
  */
-const ALERT_MAX_AGE_MS = 2 * 60 * 1000;
+const ALERT_MAX_AGE_MS = 60 * 1000;
 const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
 const DRAWER_HOLD_MS = 2 * 60 * 1000; // stays open two minutes
 const DRAWER_FIRST_MS = DRAWER_EVERY_MS; // first one lands on the same cadence

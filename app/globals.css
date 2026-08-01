@@ -45,8 +45,22 @@ body {
   }
 }
 
+/* "TILTING" stamp — breathes with the aura, keeps its diagonal */
+@keyframes tiltStamp {
+  0%,
+  100% {
+    opacity: 0.94;
+    transform: translate(-50%, -50%) rotate(-24deg) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(-24deg) scale(1.05);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  [style*="tiltPulse"] {
+  [style*="tiltPulse"],
+  [style*="tiltStamp"] {
     animation: none !important;
   }
 }
