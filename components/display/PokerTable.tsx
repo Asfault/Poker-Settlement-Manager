@@ -11,6 +11,9 @@ import TiltAura from "./TiltAura";
  * Seats are computed from an ellipse so the layout adapts from 3 players to
  * 10 without hand-placing anything. The host is pinned to top-centre and
  * everyone else fills clockwise from there in session order.
+ *
+ * Characters deliberately overlap the table rail — that overlap is what
+ * makes them read as sitting at it rather than floating around it.
  */
 
 interface Seat {
@@ -20,11 +23,11 @@ interface Seat {
   y: number;
 }
 
-/** Ellipse radii as a percentage of the container, leaving room for labels. */
-const RX = 40;
-const RY = 33;
+/** Ellipse radii as a percentage of the container. */
+const RX = 37;
+const RY = 31;
 const CX = 50;
-const CY = 50;
+const CY = 49;
 
 function layout(rows: LiveRow[]): Seat[] {
   const n = rows.length;
@@ -50,11 +53,13 @@ function layout(rows: LiveRow[]): Seat[] {
 
 /** Characters shrink as the table fills up. */
 function seatScale(n: number): number {
-  if (n <= 4) return 1.25;
-  if (n <= 6) return 1.1;
+  if (n <= 4) return 1.35;
+  if (n <= 6) return 1.15;
   if (n <= 8) return 1;
-  return 0.85;
+  return 0.82;
 }
+
+const CHIP_COLOURS = ["#d73535", "#1f9d55", "#2676c9", "#e9c46a", "#8b5cf6"];
 
 export default function PokerTable({
   rows,
@@ -77,6 +82,46 @@ export default function PokerTable({
 
   return (
     <div className="relative w-full h-full">
+      {/* --- Room ambience, all behind the table --- */}
+
+      {/* Pendant light pooling over the table */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          left: "50%",
+          top: "48%",
+          transform: "translate(-50%, -50%)",
+          width: "115%",
+          height: "150%",
+          background:
+            "radial-gradient(ellipse at 50% 45%, rgba(255,214,140,0.16) 0%, rgba(255,190,110,0.07) 28%, transparent 62%)",
+        }}
+      />
+      {/* Light cone falling from above */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          left: "50%",
+          top: "-16%",
+          transform: "translateX(-50%)",
+          width: "42%",
+          height: "72%",
+          background:
+            "linear-gradient(to bottom, rgba(255,220,150,0.14), rgba(255,220,150,0.03) 55%, transparent)",
+          clipPath: "polygon(41% 0, 59% 0, 100% 100%, 0 100%)",
+          filter: "blur(1.4vw)",
+        }}
+      />
+      {/* Room falls off into darkness at the edges */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(0,0,0,0.55) 88%)",
+          margin: "-6vh -6vw",
+        }}
+      />
+
       {/* Elapsed, top right */}
       <div className="absolute top-0 right-0 text-right z-20">
         <div className="uppercase tracking-[0.22em] text-white/35 font-semibold text-[clamp(11px,1.1vw,20px)]">
@@ -87,43 +132,102 @@ export default function PokerTable({
         </div>
       </div>
 
-      {/* Felt */}
+      {/* --- The table --- */}
       <div
-        className="absolute rounded-[50%] flex flex-col items-center justify-center"
+        className="absolute"
         style={{
           left: "50%",
-          top: "52%",
+          top: `${CY + 3}%`,
           transform: "translate(-50%, -50%)",
-          width: "44%",
+          width: "42%",
           aspectRatio: "1.75 / 1",
-          background:
-            "radial-gradient(ellipse at 50% 35%, #1a6b45, #0d3d27 70%, #082a1b)",
-          border: "0.9vw solid #4a2f18",
-          boxShadow:
-            "0 0 0 0.35vw rgba(233,196,106,0.28), inset 0 0 6vw rgba(0,0,0,0.55)",
         }}
       >
-        <div className="uppercase tracking-[0.3em] text-white/40 font-bold text-[clamp(10px,1.1vw,20px)]">
-          Total pot
-        </div>
+        {/* Wooden rail */}
         <div
-          className="text-[#e9c46a] font-black leading-none text-[clamp(38px,5.2vw,110px)]"
-          style={{ textShadow: "0 4px 20px rgba(0,0,0,0.6)" }}
+          className="absolute inset-0 rounded-[50%]"
+          style={{
+            background:
+              "linear-gradient(160deg, #6b452a 0%, #4a2f18 38%, #35200f 70%, #5c3a22 100%)",
+            boxShadow:
+              "0 2vh 5vh rgba(0,0,0,0.6), inset 0 0.2vh 0.4vh rgba(255,210,150,0.25)",
+          }}
+        />
+        {/* Felt */}
+        <div
+          className="absolute rounded-[50%] overflow-hidden"
+          style={{
+            inset: "1.6%",
+            background:
+              "radial-gradient(ellipse at 50% 32%, #1e7a4f 0%, #0f4b2f 55%, #08301e 100%)",
+            boxShadow:
+              "inset 0 0 6vw rgba(0,0,0,0.6), inset 0 0.4vh 1vh rgba(0,0,0,0.5)",
+          }}
         >
-          {formatINR(pot)}
+          {/* Felt weave */}
+          <div
+            className="absolute inset-0 opacity-[0.09]"
+            style={{
+              backgroundImage:
+                "radial-gradient(rgba(255,255,255,0.7) 0.5px, transparent 0.5px)",
+              backgroundSize: "3px 3px",
+            }}
+          />
+          {/* Betting line */}
+          <div
+            className="absolute rounded-[50%]"
+            style={{
+              inset: "13%",
+              border: "0.12vw solid rgba(255,255,255,0.09)",
+            }}
+          />
+        </div>
+
+        {/* Pot */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+          <div className="uppercase tracking-[0.3em] text-white/45 font-bold text-[clamp(10px,1.05vw,19px)]">
+            Total pot
+          </div>
+          <div
+            className="text-[#ffd95a] font-black leading-none text-[clamp(38px,5vw,105px)]"
+            style={{ textShadow: "0 0.4vh 2vh rgba(0,0,0,0.7)" }}
+          >
+            {formatINR(pot)}
+          </div>
+          {/* Chips scattered under the pot */}
+          <div className="flex items-end gap-[0.5vw] mt-[1.2vh]">
+            {[3, 5, 2, 4].map((count, stack) => (
+              <div key={stack} className="flex flex-col-reverse">
+                {Array.from({ length: count }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: "2.1vw",
+                      height: "0.55vw",
+                      marginTop: "-0.1vw",
+                      borderRadius: "50%",
+                      background: `linear-gradient(90deg, ${CHIP_COLOURS[stack % CHIP_COLOURS.length]}, #fff 22%, ${CHIP_COLOURS[stack % CHIP_COLOURS.length]} 42%, ${CHIP_COLOURS[stack % CHIP_COLOURS.length]} 60%, #fff 80%, ${CHIP_COLOURS[stack % CHIP_COLOURS.length]})`,
+                      boxShadow: "0 0.1vw 0.2vw rgba(0,0,0,0.5)",
+                      border: "0.05vw solid rgba(255,255,255,0.35)",
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Seats */}
+      {/* --- Seats --- */}
       {seats.map(({ row, x, y }) => (
         <div
           key={row.playerId}
-          className="absolute text-center z-10"
+          className="absolute text-center z-20"
           style={{
             left: `${x}%`,
             top: `${y}%`,
             transform: "translate(-50%, -50%)",
-            width: `${15 * scale}%`,
+            width: `${17 * scale}%`,
           }}
         >
           <div className="flex items-end justify-center relative">
@@ -136,11 +240,11 @@ export default function PokerTable({
                 alt={row.displayName}
                 className="relative object-contain"
                 style={{
-                  height: `${10 * scale}vw`,
-                  maxHeight: "22vh",
+                  height: `${16 * scale}vw`,
+                  maxHeight: `${34 * scale}vh`,
                   filter: row.tilted
-                    ? "drop-shadow(0 0 0.9vw rgba(255,230,120,0.55))"
-                    : "drop-shadow(0 0.6vw 1.2vw rgba(0,0,0,0.55))",
+                    ? "drop-shadow(0 0 1vw rgba(255,230,120,0.6))"
+                    : "drop-shadow(0 1vh 2vh rgba(0,0,0,0.7))",
                 }}
               />
             ) : (
@@ -148,21 +252,20 @@ export default function PokerTable({
                 <DisplayAvatar
                   name={row.displayName}
                   photoUrl={row.photoUrl}
-                  size={90 * scale}
-                  ring={
-                    row.isHost ? "rgba(233,196,106,0.8)" : undefined
-                  }
+                  size={120 * scale}
+                  ring={row.isHost ? "rgba(233,196,106,0.8)" : undefined}
                 />
               </div>
             )}
 
             {row.isHost && (
               <span
-                className="absolute -top-1 right-0 bg-[#e9c46a] text-[#0a2c1c] font-black rounded-full leading-none"
+                className="absolute -top-1 right-0 bg-[#e9c46a] text-[#0a2c1c] font-black rounded-full leading-none z-10"
                 style={{
                   fontSize: `${0.85 * scale}vw`,
                   padding: `${0.3 * scale}vw ${0.7 * scale}vw`,
                   letterSpacing: "0.1em",
+                  boxShadow: "0 0.2vw 0.6vw rgba(0,0,0,0.5)",
                 }}
               >
                 HOST
@@ -170,21 +273,32 @@ export default function PokerTable({
             )}
           </div>
 
+          {/* Name plate */}
           <div
-            className="text-white font-bold truncate mt-1"
-            style={{ fontSize: `${1.5 * scale}vw` }}
+            className="inline-block rounded-lg px-[0.9vw] py-[0.3vh] mt-[0.4vh]"
+            style={{
+              background: "rgba(2,14,10,0.72)",
+              border: "0.08vw solid rgba(255,255,255,0.09)",
+              backdropFilter: "blur(2px)",
+            }}
           >
-            {row.displayName}
+            <div
+              className="text-white font-bold truncate leading-tight"
+              style={{ fontSize: `${1.45 * scale}vw` }}
+            >
+              {row.displayName}
+            </div>
+            <div
+              className="text-[#ffd95a] font-black tabular-nums leading-tight"
+              style={{ fontSize: `${1.75 * scale}vw` }}
+            >
+              {formatINR(row.totalBuyIn)}
+            </div>
           </div>
-          <div
-            className="text-[#e9c46a] font-black tabular-nums leading-tight"
-            style={{ fontSize: `${1.7 * scale}vw` }}
-          >
-            {formatINR(row.totalBuyIn)}
-          </div>
+
           {row.tilted && (
             <div
-              className="text-[#ffe066] font-black tracking-wider"
+              className="text-[#ffe066] font-black tracking-wider mt-[0.3vh]"
               style={{
                 fontSize: `${1.05 * scale}vw`,
                 textShadow: "0 0 0.6vw rgba(255,224,102,0.7)",
