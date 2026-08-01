@@ -10,6 +10,7 @@ const NAV = [
   { href: "/host/players", label: "Players" },
   { href: "/host/history", label: "History" },
   { href: "/host/stats", label: "Stats" },
+  { href: "/host/display", label: "Display" },
 ];
 
 export default function HostLayout({
