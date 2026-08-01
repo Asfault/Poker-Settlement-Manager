@@ -86,16 +86,17 @@ export function triggeredCards(d: Derived): Card[] {
     }
   }
 
-  // Deepest pockets tonight.
+  // Deepest pockets tonight. Keyed on the player alone — fires once for
+  // them, and again only if someone else takes the title later.
   const deepest = [...live.rows].sort((a, b) => b.totalBuyIn - a.totalBuyIn)[0];
   if (deepest && deepest.buyInCount >= 3) {
     out.push({
-      id: `atm-${deepest.playerId}-${deepest.buyInCount}`,
+      id: `atm-${deepest.playerId}`,
       kind: "alert",
       title: `${deepest.displayName.toUpperCase()} IS THE ATM`,
       body: `${formatINR(deepest.totalBuyIn)} across ${deepest.buyInCount} buy-ins tonight.`,
       tone: "gold",
-      photoUrl: deepest.photoUrl,
+      photoUrl: deepest.characterUrl ?? deepest.photoUrl,
       priority: 70,
     });
   }
@@ -119,12 +120,12 @@ export function triggeredCards(d: Derived): Card[] {
   if (rocks.length === 1 && others.length >= 3) {
     const rock = rocks[0];
     out.push({
-      id: `rock-${rock.playerId}-${others.length}`,
+      id: `rock-${rock.playerId}`,
       kind: "alert",
       title: `${rock.displayName.toUpperCase()} HASN'T REBOUGHT`,
       body: "Everyone else has. Make of that what you will.",
       tone: "win",
-      photoUrl: rock.photoUrl,
+      photoUrl: rock.characterUrl ?? rock.photoUrl,
       priority: 50,
     });
   }
