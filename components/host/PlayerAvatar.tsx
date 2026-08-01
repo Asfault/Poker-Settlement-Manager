@@ -28,7 +28,12 @@ function initials(name: string): string {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
-/** Photo when there is one, coloured initials otherwise. */
+/**
+ * Photo when there is one, coloured initials otherwise.
+ *
+ * Renders a <span> rather than a <div> so it stays valid inside <button>,
+ * which only permits phrasing content. React 19 enforces this.
+ */
 export default function PlayerAvatar({
   name,
   photoUrl,
@@ -53,16 +58,16 @@ export default function PlayerAvatar({
   }
 
   return (
-    <div
+    <span
       style={{
         width: size,
         height: size,
         background: colorFor(name),
         fontSize: Math.round(size * 0.36),
       }}
-      className="rounded-full shrink-0 flex items-center justify-center font-bold text-felt-900"
+      className="rounded-full shrink-0 inline-flex items-center justify-center font-bold text-felt-900"
     >
       {initials(name)}
-    </div>
+    </span>
   );
 }

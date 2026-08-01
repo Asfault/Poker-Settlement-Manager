@@ -13,6 +13,7 @@ import Button from "@/components/Button";
 import Card from "@/components/Card";
 import PlayerAvatar from "@/components/host/PlayerAvatar";
 import PhotoCropper from "@/components/host/PhotoCropper";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<RosterPlayer[]>([]);
@@ -253,6 +254,7 @@ function PlayerEditor({
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -313,17 +315,14 @@ function PlayerEditor({
 
   async function remove() {
     if (!player) return;
-    const ok = window.confirm(
-      `Permanently delete ${player.name}? This only works if they've never played a session — otherwise archive them instead.`,
-    );
-    if (!ok) return;
+    setConfirmDelete(false);
     setBusy(true);
     try {
       await deletePlayer(player.id);
       onSaved();
     } catch {
       setError(
-        "Can't delete — they've played in a session. Archive them instead to keep the history.",
+        `${player.name} has played in at least one session, so deleting them would break that history. Either archive them, or delete those sessions first from History and then try again.`,
       );
       setBusy(false);
     }
@@ -388,7 +387,7 @@ function PlayerEditor({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ram"
+              placeholder="Dhermesh"
               autoFocus
               className="w-full bg-felt-900 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500"
             />
@@ -404,7 +403,7 @@ function PlayerEditor({
               type="text"
               value={nickname ?? ""}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="The Rock"
+              placeholder="The GOAT"
               className="w-full bg-felt-900 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500"
             />
             <p className="text-white/35 text-xs mt-1">
@@ -442,7 +441,7 @@ function PlayerEditor({
               {player.is_active ? "Archive" : "Unarchive"}
             </button>
             <button
-              onClick={remove}
+              onClick={() => setConfirmDelete(true)}
               disabled={busy}
               className="text-loss/70 hover:text-loss text-xs"
             >
@@ -459,6 +458,20 @@ function PlayerEditor({
           onDone={applyCrop}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title="Delete player?"
+        message={
+          player
+            ? `${player.name} will be removed permanently. If they've played any session this won't work — archive them instead.`
+            : ""
+        }
+        confirmLabel="Delete"
+        onConfirm={remove}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }

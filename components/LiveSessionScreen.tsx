@@ -29,6 +29,7 @@ export default function LiveSessionScreen({
     playerId: string;
     amount: number;
   } | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const totalPot = session.players.reduce(
     (sum, p) => sum + totalBuyIn(p),
@@ -97,14 +98,15 @@ export default function LiveSessionScreen({
   function removePlayer(playerId: string) {
     const player = session.players.find((p) => p.id === playerId);
     if (!player) return;
-    if (player.buyIns.length > 0) {
-      const ok = window.confirm(
-        `Remove ${player.name}? Their ${player.buyIns.length} buy-in${
-          player.buyIns.length === 1 ? "" : "s"
-        } will also be deleted.`,
-      );
-      if (!ok) return;
+    // Nothing to lose — drop them straight away.
+    if (player.buyIns.length === 0) {
+      doRemovePlayer(playerId);
+      return;
     }
+    setPendingRemove(playerId);
+  }
+
+  function doRemovePlayer(playerId: string) {
     setSession((s) => ({
       ...s,
       players: s.players.filter((p) => p.id !== playerId),
@@ -340,6 +342,24 @@ export default function LiveSessionScreen({
         cancelLabel="Cancel"
         onConfirm={confirmPendingBuyIn}
         onCancel={() => setPendingBuyIn(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        danger
+        title="Remove player?"
+        message={(() => {
+          const p = session.players.find((x) => x.id === pendingRemove);
+          if (!p) return "";
+          const n = p.buyIns.length;
+          return `${p.name} has ${n} buy-in${n === 1 ? "" : "s"} totalling ${formatINR(totalBuyIn(p))}. Removing them deletes those too.`;
+        })()}
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (pendingRemove) doRemovePlayer(pendingRemove);
+          setPendingRemove(null);
+        }}
+        onCancel={() => setPendingRemove(null)}
       />
     </div>
   );

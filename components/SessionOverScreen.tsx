@@ -146,6 +146,28 @@ export default function SessionOverScreen({
           </table>
         </Card>
 
+        {/* Running difference — saves working out the last stack by hand. */}
+        <div
+          className={`mb-5 rounded-xl border px-4 py-3 text-sm flex items-center justify-between gap-3 ${
+            totals.diff === 0
+              ? "border-win/40 bg-win/10 text-win"
+              : totals.diff < 0
+                ? "border-white/10 bg-white/5 text-white/70"
+                : "border-loss/40 bg-loss/10 text-loss"
+          }`}
+        >
+          <span>
+            {totals.diff === 0
+              ? "Chips match buy-ins exactly"
+              : totals.diff < 0
+                ? "Still to account for"
+                : "Over by"}
+          </span>
+          <span className="font-bold tabular-nums text-base">
+            {totals.diff === 0 ? "✓" : formatINR(Math.abs(totals.diff))}
+          </span>
+        </div>
+
         {error && (
           <div className="mb-5 rounded-xl border border-loss/40 bg-loss/10 px-4 py-3 text-loss text-sm">
             {error}
