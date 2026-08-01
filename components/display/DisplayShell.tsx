@@ -26,6 +26,11 @@ const HISTORY_POLL_MS = 5 * 60 * 1000; // safety net; also refetched on change
 const FILLER_MS = 15000;
 const ALERT_MS = 12000;
 const RECENT_MEMORY = 8;
+/**
+ * Minimum gap between alerts. Without this, entering several buy-ins in a
+ * row fires a queue of them back to back and the board disappears.
+ */
+const ALERT_COOLDOWN_MS = 90 * 1000;
 const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
 const DRAWER_HOLD_MS = 2 * 60 * 1000; // stays open two minutes
 const DRAWER_FIRST_MS = DRAWER_EVERY_MS; // first one lands on the same cadence
@@ -47,6 +52,7 @@ export default function DisplayShell({
   const [overlay, setOverlay] = useState<Card | null>(null);
   const recentIds = useRef<string[]>([]);
   const firedIds = useRef<Set<string>>(new Set());
+  const lastAlertAt = useRef(0);
   const overlayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,7 +158,13 @@ export default function DisplayShell({
       .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     const next = candidates[0];
     if (!next) return;
+
+    // Hold anything queued behind the cooldown. It stays unfired, so it'll
+    // be picked up on a later pass rather than being lost.
+    if (Date.now() - lastAlertAt.current < ALERT_COOLDOWN_MS) return;
+
     firedIds.current.add(next.id);
+    lastAlertAt.current = Date.now();
     show(next, ALERT_MS);
   }, [derived, show]);
 
