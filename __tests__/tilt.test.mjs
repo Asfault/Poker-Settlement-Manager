@@ -1,6 +1,6 @@
 // Tilt episode rules, mirroring tiltState() in lib/display/derive.ts
 const WINDOW = 15 * 60 * 1000;
-const HOLD = 10 * 60 * 1000;
+const HOLD = 5 * 60 * 1000;
 const M = 60 * 1000;
 
 function tiltState(times, now) {
@@ -36,19 +36,19 @@ console.log("Two buy-ins inside 15 min starts it");
 check("10 min apart, checked immediately", tiltState([0, 10 * M], 10 * M).tilted, true);
 check("16 min apart — too slow", tiltState([0, 16 * M], 16 * M).tilted, false);
 
-console.log("Aura lasts 10 min from the last buy-in");
-check("9 min after 2nd", tiltState([0, 10 * M], 19 * M).tilted, true);
-check("10 min after 2nd (boundary)", tiltState([0, 10 * M], 20 * M).tilted, true);
-check("11 min after 2nd — lapsed", tiltState([0, 10 * M], 21 * M).tilted, false);
+console.log("Aura lasts 5 min from the last buy-in");
+check("4 min after 2nd", tiltState([0, 10 * M], 14 * M).tilted, true);
+check("5 min after 2nd (boundary)", tiltState([0, 10 * M], 15 * M).tilted, true);
+check("6 min after 2nd — lapsed", tiltState([0, 10 * M], 16 * M).tilted, false);
 
 console.log("Reloading while tilted extends it");
-// buy-ins at 0 and 10 → tilt until 20. Another at 18 → extends to 28.
-check("at 25 min, still tilted", tiltState([0, 10 * M, 18 * M], 25 * M).tilted, true);
-check("at 29 min, lapsed", tiltState([0, 10 * M, 18 * M], 29 * M).tilted, false);
+// buy-ins at 0 and 10 → tilt until 15. Another at 13 → extends to 18.
+check("at 17 min, still tilted", tiltState([0, 10 * M, 13 * M], 17 * M).tilted, true);
+check("at 19 min, lapsed", tiltState([0, 10 * M, 13 * M], 19 * M).tilted, false);
 
 console.log("Episode start is stable across extra reloads");
 const twoBuyIns = tiltState([0, 10 * M], 12 * M);
-const fourBuyIns = tiltState([0, 10 * M, 14 * M, 17 * M], 18 * M);
+const fourBuyIns = tiltState([0, 10 * M, 13 * M, 15 * M], 16 * M);
 check("2nd buy-in opens the episode", twoBuyIns.startedAt, 10 * M);
 check("3rd and 4th don't restart it", fourBuyIns.startedAt, 10 * M);
 console.log("  ^ same id, so the alert fires once per episode");

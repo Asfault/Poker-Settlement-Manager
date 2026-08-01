@@ -77,13 +77,13 @@ export interface Derived {
 }
 
 const TILT_WINDOW_MS = 15 * 60 * 1000; // two buy-ins this close starts it
-const TILT_HOLD_MS = 10 * 60 * 1000; // aura lasts this long after the last one
+const TILT_HOLD_MS = 5 * 60 * 1000; // aura lasts this long after the last one
 
 /**
  * Work out whether someone is currently on tilt.
  *
  * An episode starts on the second buy-in inside a 15-minute window, and
- * runs for 10 minutes from the most recent buy-in. Reloading while already
+ * runs for 5 minutes from the most recent buy-in. Reloading while already
  * tilted pushes the end back rather than starting a fresh episode — which
  * is what keeps the alert from firing again on the third and fourth.
  */
