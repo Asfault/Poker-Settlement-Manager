@@ -4,6 +4,7 @@ import type { LiveRow } from "@/lib/display/derive";
 import { formatINR } from "@/lib/format";
 import DisplayAvatar from "./DisplayAvatar";
 import TiltAura from "./TiltAura";
+import NamePlate from "./NamePlate";
 
 /**
  * The live board.
@@ -191,30 +192,13 @@ export default function PokerTable({
               )}
             </div>
 
-            {/* Name plate */}
-            <div
-              className="relative inline-block rounded-lg px-[1vw] py-[0.35vh] mt-[0.5vh]"
-              style={{
-                background: "rgba(6,10,22,0.78)",
-                border: row.isHost
-                  ? "0.1vw solid rgba(255,214,140,0.5)"
-                  : "0.08vw solid rgba(255,255,255,0.12)",
-                backdropFilter: "blur(3px)",
-                boxShadow: "0 0.4vh 1.4vh rgba(0,0,0,0.6)",
-              }}
-            >
-              <div
-                className="text-white font-bold truncate leading-tight"
-                style={{ fontSize: `${1.45 * depthScale}vw` }}
-              >
-                {row.displayName}
-              </div>
-              <div
-                className="text-[#ffd95a] font-black tabular-nums leading-tight"
-                style={{ fontSize: `${2.15 * depthScale}vw` }}
-              >
-                {formatINR(row.totalBuyIn)}
-              </div>
+            <div className="relative">
+              <NamePlate
+                name={row.displayName}
+                amount={formatINR(row.totalBuyIn)}
+                scale={depthScale}
+                highlight={row.isHost}
+              />
             </div>
 
             {row.tilted && (
