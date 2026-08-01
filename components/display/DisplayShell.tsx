@@ -28,7 +28,7 @@ const ALERT_MS = 12000;
 const RECENT_MEMORY = 8;
 const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
 const DRAWER_HOLD_MS = 2 * 60 * 1000; // stays open two minutes
-const DRAWER_FIRST_MS = 3 * 60 * 1000; // first one shortly after the game starts
+const DRAWER_FIRST_MS = DRAWER_EVERY_MS; // first one lands on the same cadence
 
 export default function DisplayShell({
   password,
