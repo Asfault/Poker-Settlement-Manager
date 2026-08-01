@@ -30,14 +30,29 @@ export function computeResults(players: Player[]): PlayerResult[] {
  * spec's example exactly.
  */
 export function calculateSettlements(results: PlayerResult[]): Settlement[] {
-  const payers = results
-    .filter((r) => r.profitLoss < 0)
-    .map((r) => ({ name: r.name, amount: -r.profitLoss }))
+  return settleBalances(
+    results.map((r) => ({ name: r.name, balance: r.profitLoss })),
+  );
+}
+
+/**
+ * Same greedy matcher, but over arbitrary named balances rather than poker
+ * P/L specifically. Host mode nets the house fee in before calling this.
+ *
+ * Assumes the balances sum to zero, which they always do: poker P/L is
+ * zero-sum, and the house fee is a pure transfer.
+ */
+export function settleBalances(
+  balances: { name: string; balance: number }[],
+): Settlement[] {
+  const payers = balances
+    .filter((r) => r.balance < 0)
+    .map((r) => ({ name: r.name, amount: -r.balance }))
     .sort((a, b) => b.amount - a.amount);
 
-  const receivers = results
-    .filter((r) => r.profitLoss > 0)
-    .map((r) => ({ name: r.name, amount: r.profitLoss }))
+  const receivers = balances
+    .filter((r) => r.balance > 0)
+    .map((r) => ({ name: r.name, amount: r.balance }))
     .sort((a, b) => b.amount - a.amount);
 
   const settlements: Settlement[] = [];

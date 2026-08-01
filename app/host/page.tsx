@@ -3,15 +3,44 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { listPlayers } from "@/lib/db/players";
+import {
+  DbSession,
+  deleteSession,
+  findOpenSession,
+  listSessions,
+} from "@/lib/db/sessions";
+import { formatDateTime } from "@/lib/format";
+import Button from "@/components/Button";
 import Card from "@/components/Card";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export default function HostDashboard() {
   const [playerCount, setPlayerCount] = useState<number | null>(null);
+  const [open, setOpen] = useState<DbSession | null>(null);
+  const [recent, setRecent] = useState<DbSession[]>([]);
+  const [discarding, setDiscarding] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  async function discardOpen() {
+    if (!open) return;
+    setConfirmDiscard(false);
+    setDiscarding(true);
+    try {
+      await deleteSession(open.id);
+      setOpen(null);
+    } finally {
+      setDiscarding(false);
+    }
+  }
 
   useEffect(() => {
     listPlayers()
       .then((p) => setPlayerCount(p.length))
       .catch(() => setPlayerCount(null));
+    findOpenSession().then(setOpen).catch(() => setOpen(null));
+    listSessions()
+      .then((s) => setRecent(s.filter((x) => x.status === "complete").slice(0, 3)))
+      .catch(() => setRecent([]));
   }, []);
 
   return (
@@ -26,15 +55,52 @@ export default function HostDashboard() {
           </p>
         </header>
 
-        <Card className="p-5 mb-4 border-gold-500/30">
-          <h2 className="font-semibold mb-1">Phase 1 is live</h2>
-          <p className="text-white/60 text-sm">
-            Roster and photos are ready. Sessions, house fees, stats and the
-            live display come next.
-          </p>
-        </Card>
+        {open && (
+          <Card className="p-5 mb-4 border-gold-500/50">
+            <div className="flex items-center justify-between gap-3">
+              <Link
+                href={`/host/session/${open.id}`}
+                className="min-w-0 flex-1"
+              >
+                <div className="text-xs uppercase tracking-wide text-gold-400 mb-0.5">
+                  Session in progress
+                </div>
+                <div className="font-semibold">
+                  {open.status === "tally"
+                    ? "Waiting on chip counts"
+                    : "Live now"}
+                </div>
+                <div className="text-white/45 text-xs mt-0.5">
+                  Started {formatDateTime(new Date(open.started_at).getTime())}
+                </div>
+              </Link>
+              <Link
+                href={`/host/session/${open.id}`}
+                className="text-2xl shrink-0"
+              >
+                →
+              </Link>
+            </div>
+            <button
+              onClick={() => setConfirmDiscard(true)}
+              disabled={discarding}
+              className="mt-3 pt-3 border-t border-white/5 w-full text-left text-loss/70 hover:text-loss text-xs"
+            >
+              {discarding ? "Discarding…" : "Discard this session"}
+            </button>
+          </Card>
+        )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Link href="/host/session/new">
+            <Card className="p-5 h-full hover:border-white/20 transition-colors">
+              <div className="text-2xl mb-2">🃏</div>
+              <div className="font-semibold">New session</div>
+              <div className="text-white/45 text-xs mt-0.5">
+                Pick players, set the fee
+              </div>
+            </Card>
+          </Link>
           <Link href="/host/players">
             <Card className="p-5 h-full hover:border-white/20 transition-colors">
               <div className="text-2xl mb-2">👥</div>
@@ -44,17 +110,50 @@ export default function HostDashboard() {
               </div>
             </Card>
           </Link>
-          <Link href="/">
-            <Card className="p-5 h-full hover:border-white/20 transition-colors">
-              <div className="text-2xl mb-2">🃏</div>
-              <div className="font-semibold">Run a session</div>
-              <div className="text-white/45 text-xs mt-0.5">
-                Uses the public tracker for now
-              </div>
-            </Card>
-          </Link>
         </div>
+
+        {recent.length > 0 && (
+          <>
+            <h2 className="text-sm uppercase tracking-wide text-white/50 mb-2">
+              Recent sessions
+            </h2>
+            <div className="flex flex-col gap-2">
+              {recent.map((s) => (
+                <Link key={s.id} href={`/host/session/${s.id}`}>
+                  <Card className="p-4 hover:border-white/20 transition-colors flex items-center justify-between gap-3">
+                    <span className="text-sm">
+                      {formatDateTime(new Date(s.started_at).getTime())}
+                    </span>
+                    <span className="text-white/30 text-sm shrink-0">View</span>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+
+        {playerCount === 0 && (
+          <Card className="p-6 text-center mt-4">
+            <p className="text-white/50 text-sm mb-4">
+              Add your regulars to the roster first — then starting a session is
+              just tapping names.
+            </p>
+            <Link href="/host/players">
+              <Button>Add players</Button>
+            </Link>
+          </Card>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDiscard}
+        danger
+        title="Discard this session?"
+        message="Every buy-in in it is deleted permanently."
+        confirmLabel="Discard"
+        onConfirm={discardOpen}
+        onCancel={() => setConfirmDiscard(false)}
+      />
     </div>
   );
 }
