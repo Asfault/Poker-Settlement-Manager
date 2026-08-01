@@ -28,6 +28,8 @@ export interface DbSessionPlayer {
   display_name: string;
   chips_left: number | null;
   pays_house_fee: boolean;
+  /** Order they were added in — keeps lists matching the exported image. */
+  position: number;
   /** Joined in by loadSession. */
   buy_ins: DbBuyIn[];
   photo_url: string | null;
@@ -83,11 +85,13 @@ export async function createSession(input: {
 
   const session = data as DbSession;
 
-  const rows = input.playerIds.map((pid) => ({
+  // Position preserves the order you picked people in.
+  const rows = input.playerIds.map((pid, index) => ({
     session_id: session.id,
     player_id: pid,
     display_name: input.displayNames[pid] ?? "",
     pays_house_fee: pid !== input.hostPlayerId,
+    position: index,
   }));
 
   const { error: spError } = await supabase.from("session_players").insert(rows);
@@ -105,11 +109,14 @@ export async function loadSession(id: string): Promise<LoadedSession> {
     .single();
   if (sErr) throw sErr;
 
+  // Order by the position captured at insert time, with the name as a
+  // tiebreaker so nothing shuffles between loads.
   const { data: pData, error: pErr } = await supabase
     .from("session_players")
     .select("*, players(photo_url), buy_ins(*)")
     .eq("session_id", id)
-    .order("created_at");
+    .order("position")
+    .order("display_name");
   if (pErr) throw pErr;
 
   const players = ((pData ?? []) as unknown[]).map((raw) => {
@@ -124,6 +131,7 @@ export async function loadSession(id: string): Promise<LoadedSession> {
       display_name: row.display_name,
       chips_left: row.chips_left,
       pays_house_fee: row.pays_house_fee,
+      position: row.position ?? 0,
       photo_url: row.players?.photo_url ?? null,
       buy_ins: [...(row.buy_ins ?? [])].sort((a, b) =>
         a.created_at.localeCompare(b.created_at),
@@ -189,11 +197,21 @@ export async function addPlayerToSession(input: {
   displayName: string;
   paysHouseFee: boolean;
 }): Promise<void> {
+  // Append to the end of the existing order.
+  const { data: existing } = await supabase
+    .from("session_players")
+    .select("position")
+    .eq("session_id", input.sessionId)
+    .order("position", { ascending: false });
+  const rows = (existing ?? []) as { position: number | null }[];
+  const nextPosition = rows.length > 0 ? (rows[0].position ?? 0) + 1 : 0;
+
   const { error } = await supabase.from("session_players").insert({
     session_id: input.sessionId,
     player_id: input.playerId,
     display_name: input.displayName,
     pays_house_fee: input.paysHouseFee,
+    position: nextPosition,
   });
   if (error) throw error;
 }

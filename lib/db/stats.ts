@@ -85,12 +85,22 @@ export async function loadCompletedSessions(): Promise<SessionSummary[]> {
         player_id: string;
         display_name: string;
         chips_left: number | null;
+        position: number | null;
         players: { name: string; photo_url: string | null } | null;
         buy_ins: { amount: number }[] | null;
       }[];
     };
 
-    const players = (s.session_players ?? []).map((sp) => {
+    // Keep the order players were added in, name as tiebreaker.
+    const players = [...(s.session_players ?? [])]
+      .sort(
+        (a, b) =>
+          (a.position ?? 0) - (b.position ?? 0) ||
+          (a.players?.name ?? a.display_name).localeCompare(
+            b.players?.name ?? b.display_name,
+          ),
+      )
+      .map((sp) => {
       const buyIns = sp.buy_ins ?? [];
       const totalBuyIn = buyIns.reduce((sum, b) => sum + b.amount, 0);
       const chipsLeft = sp.chips_left ?? 0;
@@ -264,12 +274,13 @@ export async function createBackfillSession(input: {
   const { data: spData, error: spErr } = await supabase
     .from("session_players")
     .insert(
-      input.players.map((p) => ({
+      input.players.map((p, index) => ({
         session_id: sessionId,
         player_id: p.playerId,
         display_name: p.name,
         chips_left: Math.max(0, Math.round(p.chipsLeft)),
         pays_house_fee: p.playerId !== input.hostPlayerId,
+        position: index,
       })),
     )
     .select();

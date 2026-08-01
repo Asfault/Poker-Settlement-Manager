@@ -16,6 +16,10 @@ export function displayNameOf(p: RosterPlayer): string {
   return p.nickname?.trim() || p.name;
 }
 
+/**
+ * Roster ordered by how often someone plays, then alphabetically.
+ * Regulars float to the top so picking a lineup is mostly the first few taps.
+ */
 export async function listPlayers(
   includeInactive = false,
 ): Promise<RosterPlayer[]> {
@@ -23,7 +27,26 @@ export async function listPlayers(
   if (!includeInactive) query = query.eq("is_active", true);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as RosterPlayer[];
+  const players = (data ?? []) as RosterPlayer[];
+
+  const counts = await getGameCounts();
+  return players.sort(
+    (a, b) =>
+      (counts[b.id] ?? 0) - (counts[a.id] ?? 0) || a.name.localeCompare(b.name),
+  );
+}
+
+/** How many sessions each player has appeared in, keyed by player id. */
+export async function getGameCounts(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from("session_players")
+    .select("player_id");
+  if (error) return {};
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as { player_id: string }[]) {
+    counts[row.player_id] = (counts[row.player_id] ?? 0) + 1;
+  }
+  return counts;
 }
 
 export async function createPlayer(input: {

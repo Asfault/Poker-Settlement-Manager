@@ -42,6 +42,7 @@ create table if not exists session_players (
   display_name    text not null,
   chips_left      integer,
   pays_house_fee  boolean not null default true,
+  position        integer not null default 0,
   created_at      timestamptz not null default now(),
   unique (session_id, player_id)
 );
@@ -68,6 +69,7 @@ insert into app_settings (id) values (1) on conflict (id) do nothing;
 -- ---------- Indexes ----------
 
 create index if not exists idx_session_players_session on session_players(session_id);
+create index if not exists idx_session_players_position on session_players(session_id, position);
 create index if not exists idx_session_players_player  on session_players(player_id);
 create index if not exists idx_buy_ins_session_player  on buy_ins(session_player_id);
 create index if not exists idx_sessions_started_at     on sessions(started_at desc);
