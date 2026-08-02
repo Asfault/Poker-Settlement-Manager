@@ -19,10 +19,18 @@ export interface SessionSummary {
     playerId: string;
     name: string;
     photoUrl: string | null;
+    /** Current roster status. Archived players stay in historical totals. */
+    isActive: boolean;
     totalBuyIn: number;
     chipsLeft: number;
     profitLoss: number;
     buyInCount: number;
+    /**
+     * Epoch ms of each buy-in, oldest first. Drives rebuy-timing stats.
+     * Backfilled sessions collapse to one row stamped at started_at, so
+     * anything derived from these must skip backfill.
+     */
+    buyInTimes: number[];
   }[];
   pot: number;
   durationMs: number | null;
@@ -32,6 +40,7 @@ export interface PlayerStats {
   playerId: string;
   name: string;
   photoUrl: string | null;
+  isActive: boolean;
   sessions: number;
   totalBuyIn: number;
   totalChips: number;
@@ -67,7 +76,7 @@ export async function loadCompletedSessions(): Promise<SessionSummary[]> {
   const { data, error } = await supabase
     .from("sessions")
     .select(
-      "*, session_players(*, players(name, photo_url), buy_ins(amount))",
+      "*, session_players(*, players(name, photo_url, is_active), buy_ins(amount, created_at))",
     )
     .eq("status", "complete")
     .order("started_at", { ascending: false });
@@ -86,8 +95,12 @@ export async function loadCompletedSessions(): Promise<SessionSummary[]> {
         display_name: string;
         chips_left: number | null;
         position: number | null;
-        players: { name: string; photo_url: string | null } | null;
-        buy_ins: { amount: number }[] | null;
+        players: {
+          name: string;
+          photo_url: string | null;
+          is_active: boolean | null;
+        } | null;
+        buy_ins: { amount: number; created_at: string }[] | null;
       }[];
     };
 
@@ -109,10 +122,16 @@ export async function loadCompletedSessions(): Promise<SessionSummary[]> {
         // Prefer the current roster name so renames propagate through stats.
         name: sp.players?.name ?? sp.display_name,
         photoUrl: sp.players?.photo_url ?? null,
+        // Missing row or null column means the player predates migration 006
+        // and is still on the roster.
+        isActive: sp.players?.is_active ?? true,
         totalBuyIn,
         chipsLeft,
         profitLoss: chipsLeft - totalBuyIn,
         buyInCount: buyIns.length,
+        buyInTimes: buyIns
+          .map((b) => new Date(b.created_at).getTime())
+          .sort((a, b) => a - b),
       };
     });
 
@@ -148,6 +167,7 @@ export function computePlayerStats(sessions: SessionSummary[]): PlayerStats[] {
           playerId: p.playerId,
           name: p.name,
           photoUrl: p.photoUrl,
+          isActive: p.isActive,
           sessions: 0,
           totalBuyIn: 0,
           totalChips: 0,
@@ -168,6 +188,7 @@ export function computePlayerStats(sessions: SessionSummary[]): PlayerStats[] {
 
       e.name = p.name;
       e.photoUrl = p.photoUrl;
+      e.isActive = p.isActive;
       e.sessions += 1;
       e.totalBuyIn += p.totalBuyIn;
       e.totalChips += p.chipsLeft;

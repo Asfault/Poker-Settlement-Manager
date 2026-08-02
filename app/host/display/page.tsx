@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { getDisplayPassword, setDisplayPassword } from "@/lib/db/display";
+import { loadCompletedSessions } from "@/lib/db/stats";
+import { HouseLedger, computeHouseLedger } from "@/lib/stats/extra";
+import { formatDateTime, formatINR } from "@/lib/format";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -15,6 +18,26 @@ export default function DisplaySettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [origin, setOrigin] = useState("");
+
+  // House fees are deliberately buried down here. Loaded only when opened,
+  // so the page costs nothing extra for anyone who never looks.
+  const [houseOpen, setHouseOpen] = useState(false);
+  const [house, setHouse] = useState<HouseLedger | null>(null);
+  const [houseLoading, setHouseLoading] = useState(false);
+
+  async function toggleHouse() {
+    const next = !houseOpen;
+    setHouseOpen(next);
+    if (!next || house !== null) return;
+    setHouseLoading(true);
+    try {
+      setHouse(computeHouseLedger(await loadCompletedSessions()));
+    } catch {
+      setHouse({ total: 0, rows: [] });
+    } finally {
+      setHouseLoading(false);
+    }
+  }
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -155,6 +178,68 @@ export default function DisplaySettingsPage() {
                 </p>
               )}
             </Card>
+
+            {/* House fees. Not poker — a pure transfer, kept out of stats and
+                out of the way. See lib/houseFee.ts. */}
+            <div className="mt-8 pt-5 border-t border-white/5">
+              <button
+                onClick={toggleHouse}
+                aria-expanded={houseOpen}
+                className="w-full flex items-center justify-between gap-3 min-h-[44px] text-left text-white/45 hover:text-white/70 transition-colors"
+              >
+                <span className="text-sm">House fees</span>
+                <span className="text-xs">{houseOpen ? "Hide" : "Show"}</span>
+              </button>
+
+              {houseOpen && (
+                <Card className="p-5 mt-3">
+                  {houseLoading && (
+                    <p className="text-white/40 text-sm">Loading…</p>
+                  )}
+                  {!houseLoading && house && house.rows.length === 0 && (
+                    <p className="text-white/50 text-sm">
+                      No fees collected yet.
+                    </p>
+                  )}
+                  {!houseLoading && house && house.rows.length > 0 && (
+                    <>
+                      <div className="flex items-baseline justify-between gap-4 pb-3 mb-3 border-b border-white/5">
+                        <span className="text-white/45 text-xs">
+                          Collected all time
+                        </span>
+                        <span className="text-xl font-bold tabular-nums text-gold-400">
+                          {formatINR(house.total)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {house.rows.map((r) => (
+                          <div
+                            key={r.sessionId}
+                            className="flex items-center justify-between gap-3 text-sm"
+                          >
+                            <span className="text-white/60 min-w-0 truncate">
+                              {formatDateTime(r.at).split(",")[0]}
+                              <span className="text-white/30">
+                                {" "}
+                                · {r.payers} × {formatINR(r.perPlayer)}
+                              </span>
+                            </span>
+                            <span className="tabular-nums text-white/85 shrink-0">
+                              {formatINR(r.collected)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-white/30 text-xs mt-4">
+                        Table fees only. This is a transfer, not winnings — it
+                        never enters buy-ins, chip counts, P/L or anything on
+                        the Stats page.
+                      </p>
+                    </>
+                  )}
+                </Card>
+              )}
+            </div>
           </>
         )}
       </div>
