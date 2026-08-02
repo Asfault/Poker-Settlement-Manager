@@ -18,6 +18,9 @@ export const viewport: Viewport = {
   themeColor: "#0a3320",
   width: "device-width",
   initialScale: 1,
+  // Required for env(safe-area-inset-*) to report anything but 0. Without it
+  // the black-translucent status bar tucks content under the Dynamic Island.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

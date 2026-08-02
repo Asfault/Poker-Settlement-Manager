@@ -286,7 +286,7 @@ export default function BackfillPage() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-felt-900 via-felt-900/95 to-transparent">
+      <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe-4 bg-gradient-to-t from-felt-900 via-felt-900/95 to-transparent">
         <div className="max-w-2xl mx-auto">
           <Button
             size="lg"

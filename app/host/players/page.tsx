@@ -57,7 +57,7 @@ export default function PlayersPage() {
   const archivedCount = archived.length;
 
   return (
-    <div className="px-4 py-6 pb-24">
+    <div className="px-4 py-6 pb-8">
       <div className="max-w-3xl mx-auto">
         <header className="flex items-center justify-between mb-5 gap-2">
           {searchOpen ? (

@@ -44,7 +44,7 @@ export default function HostDashboard() {
   }, []);
 
   return (
-    <div className="px-4 py-6 pb-24">
+    <div className="px-4 py-6">
       <div className="max-w-3xl mx-auto">
         <header className="mb-6">
           <h1 className="text-2xl font-bold">Host</h1>
@@ -84,29 +84,51 @@ export default function HostDashboard() {
             <button
               onClick={() => setConfirmDiscard(true)}
               disabled={discarding}
-              className="mt-3 pt-3 border-t border-white/5 w-full text-left text-loss/70 hover:text-loss text-xs"
+              className="mt-3 pt-3 border-t border-white/5 w-full text-left text-loss/70 hover:text-loss text-xs min-h-[44px]"
             >
               {discarding ? "Discarding…" : "Discard this session"}
             </button>
           </Card>
         )}
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Link href="/host/session/new">
-            <Card className="p-5 h-full hover:border-white/20 transition-colors">
-              <div className="text-2xl mb-2">🃏</div>
-              <div className="font-semibold">New session</div>
-              <div className="text-white/45 text-xs mt-0.5">
+        {/* The one thing you open this app to do. Full width, gold border,
+            biggest target on the screen. */}
+        <Link href="/host/session/new" className="block mb-3">
+          <Card className="p-5 min-h-[76px] flex items-center gap-4 border-gold-500/45 hover:border-gold-500/70 transition-colors">
+            <span className="text-3xl leading-none" aria-hidden="true">
+              🃏
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold text-lg">New session</span>
+              <span className="block text-white/45 text-xs mt-0.5">
                 Pick players, set the fee
+              </span>
+            </span>
+          </Card>
+        </Link>
+
+        {/* Players is a tab now, so the secondary row is the two screens that
+            didn't earn a tab. */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Link href="/host/display">
+            <Card className="p-4 h-full min-h-[72px] hover:border-white/20 transition-colors">
+              <div className="text-xl mb-1.5" aria-hidden="true">
+                📺
+              </div>
+              <div className="font-semibold text-sm">Display</div>
+              <div className="text-white/45 text-xs mt-0.5">
+                TV board and password
               </div>
             </Card>
           </Link>
-          <Link href="/host/players">
-            <Card className="p-5 h-full hover:border-white/20 transition-colors">
-              <div className="text-2xl mb-2">👥</div>
-              <div className="font-semibold">Players</div>
+          <Link href="/host/shared">
+            <Card className="p-4 h-full min-h-[72px] hover:border-white/20 transition-colors">
+              <div className="text-xl mb-1.5" aria-hidden="true">
+                🌍
+              </div>
+              <div className="font-semibold text-sm">Wild</div>
               <div className="text-white/45 text-xs mt-0.5">
-                Roster, nicknames, photos
+                Games run by others
               </div>
             </Card>
           </Link>
@@ -120,7 +142,7 @@ export default function HostDashboard() {
             <div className="flex flex-col gap-2">
               {recent.map((s) => (
                 <Link key={s.id} href={`/host/session/${s.id}`}>
-                  <Card className="p-4 hover:border-white/20 transition-colors flex items-center justify-between gap-3">
+                  <Card className="p-4 min-h-[56px] hover:border-white/20 transition-colors flex items-center justify-between gap-3">
                     <span className="text-sm">
                       {formatDateTime(new Date(s.started_at).getTime())}
                     </span>

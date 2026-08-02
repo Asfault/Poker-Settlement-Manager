@@ -20,6 +20,40 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Safe-area helpers.
+   The app runs as a home-screen PWA with statusBarStyle "black-translucent",
+   so the OS does not inset anything for us — the Dynamic Island sits on top of
+   our header and the home indicator sits on top of our fixed bottom bars.
+   These add the inset on top of the padding the element already wanted.
+   In Safari and on non-notched devices every inset resolves to 0px, so these
+   are free to apply unconditionally. */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Fixed bottom action bars: keep their own 1rem breathing room, then clear the
+   home indicator on top of it. */
+.pb-safe-4 {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Scroll padding so content never ends flush under a fixed bar. */
+.scroll-pb-safe {
+  scroll-padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Exact height of the bottom tab bar: 56px of tab + the home-indicator inset.
+   Used by the in-flow spacer that lets page content scroll clear of it.
+   This has to be one computed height rather than h-14 + padding, because
+   Tailwind sets border-box globally and padding would land inside the 56px. */
+.h-tabbar {
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
 /* Tilt aura — two layers pulsing out of phase so the crackle feels alive */
 @keyframes tiltPulse {
   0%,
