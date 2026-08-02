@@ -11,18 +11,16 @@ import {
   savedSharePassword,
   sharedSlugExists,
 } from "@/lib/db/shared-stats";
-import GameSummaryView from "@/components/stats/GameSummaryView";
+import GameHistoryList from "@/components/stats/GameHistoryList";
 import SharedGate from "@/components/stats/SharedGate";
-import Card from "@/components/Card";
 
 /**
- * One night's summary on the public shared link. Gated independently, so a
- * forwarded deep link still has to pass the password.
+ * Every past night, on its own page rather than as an endless list under the
+ * stats. Gated independently, like every other route on the shared link.
  */
-export default function SharedGamePage() {
-  const params = useParams<{ slug: string; id: string }>();
+export default function SharedGamesPage() {
+  const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "";
-  const sessionId = params?.id ?? "";
 
   const [exists, setExists] = useState<boolean | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
@@ -94,23 +92,29 @@ export default function SharedGamePage() {
     );
   }
 
-  const session = sessions.find((s) => s.id === sessionId);
-
   return (
     <div className="px-4 py-6 pb-10 pt-safe">
       <div className="max-w-3xl mx-auto">
-        {session ? (
-          <GameSummaryView session={session} backHref={`/${slug}/games`} />
-        ) : (
-          <Card className="p-8 text-center">
-            <p className="text-white/50 text-sm mb-4">
-              That game isn&apos;t here.
-            </p>
-            <Link href={`/${slug}/games`} className="text-gold-400 text-sm">
-              Back to game history
-            </Link>
-          </Card>
-        )}
+        <Link
+          href={`/${slug}`}
+          className="text-white/40 hover:text-white text-sm inline-flex items-center min-h-[44px]"
+        >
+          ← Stats
+        </Link>
+
+        <header className="mb-5 mt-1">
+          <h1 className="text-xl font-bold">Game history</h1>
+          <p className="text-white/50 text-sm">
+            {sessions.length} night{sessions.length === 1 ? "" : "s"}, newest
+            first
+          </p>
+        </header>
+
+        <GameHistoryList
+          sessions={sessions}
+          gameHref={(id) => `/${slug}/game/${id}`}
+        />
+
         <p className="text-white/25 text-xs mt-8 text-center">pokeresh.com</p>
       </div>
     </div>

@@ -5,10 +5,7 @@ import type { SessionSummary } from "@/lib/db/stats";
 import { formatDateTime, formatINR } from "@/lib/format";
 import Card from "@/components/Card";
 
-/**
- * Every past night, newest first. Poker figures only in the list — the fee
- * appears inside a night's own summary, where the settlements need it.
- */
+/** Every past night, newest first. Poker figures only — no fees anywhere. */
 export default function GameHistoryList({
   sessions,
   gameHref,
