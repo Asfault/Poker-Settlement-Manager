@@ -82,7 +82,18 @@ export async function loadCompletedSessions(): Promise<SessionSummary[]> {
     .order("started_at", { ascending: false });
   if (error) throw error;
 
-  return ((data ?? []) as unknown[]).map((raw) => {
+  return mapSessionRows(data ?? []);
+}
+
+/**
+ * Raw session rows to SessionSummary.
+ *
+ * Exported because the public shared-stats page gets the identical shape back
+ * from the `shared_stats_payload` RPC (migration 008) and reuses this rather
+ * than reimplementing it — one mapping, no chance of the two drifting.
+ */
+export function mapSessionRows(rows: unknown[]): SessionSummary[] {
+  return rows.map((raw) => {
     const s = raw as {
       id: string;
       started_at: string;
