@@ -21,6 +21,8 @@ export interface SessionSummary {
     photoUrl: string | null;
     /** Current roster status. Archived players stay in historical totals. */
     isActive: boolean;
+    /** False for the host and for any guest who was exempted that night. */
+    paysHouseFee: boolean;
     totalBuyIn: number;
     chipsLeft: number;
     profitLoss: number;
@@ -106,6 +108,7 @@ export function mapSessionRows(rows: unknown[]): SessionSummary[] {
         display_name: string;
         chips_left: number | null;
         position: number | null;
+        pays_house_fee: boolean | null;
         players: {
           name: string;
           photo_url: string | null;
@@ -136,6 +139,7 @@ export function mapSessionRows(rows: unknown[]): SessionSummary[] {
         // Missing row or null column means the player predates migration 006
         // and is still on the roster.
         isActive: sp.players?.is_active ?? true,
+        paysHouseFee: sp.pays_house_fee ?? true,
         totalBuyIn,
         chipsLeft,
         profitLoss: chipsLeft - totalBuyIn,

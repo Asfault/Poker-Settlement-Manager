@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/shared-stats";
 import StatsView from "@/components/stats/StatsView";
 import SharedGate from "@/components/stats/SharedGate";
+import GameHistoryList from "@/components/stats/GameHistoryList";
 
 /**
  * Public read-only stats at pokeresh.com/<slug>.
@@ -113,6 +114,21 @@ export default function SharedStatsPage() {
           sessions={sessions}
           playerHref={(id) => `/${slug}/player/${id}`}
         />
+
+        {sessions.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-white/5">
+            <h2 className="text-sm uppercase tracking-wide text-white/50 mb-2">
+              Game history
+            </h2>
+            <p className="text-white/35 text-xs mb-3">
+              Every night, with results and who paid whom.
+            </p>
+            <GameHistoryList
+              sessions={sessions}
+              gameHref={(id) => `/${slug}/game/${id}`}
+            />
+          </div>
+        )}
 
         <p className="text-white/25 text-xs mt-8 text-center">
           pokeresh.com

@@ -62,7 +62,7 @@ export default function SharedGate({
 
         {wrong && (
           <p className="text-loss text-sm mb-3">
-            That&apos;s not it. Ask Dhermesh for the password.
+            That&apos;s not it. Please recheck the password.
           </p>
         )}
 
