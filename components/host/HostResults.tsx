@@ -76,23 +76,34 @@ export default function HostResults({
   ]);
 
   /**
-   * "Settlements include house fees, Pizza and Burgers" — degrading by count
-   * so three orders don't produce a paragraph.
+   * "Includes house fees, Pizza and Burgers" — degrading by count so three
+   * orders don't produce a paragraph.
+   *
+   * It sits directly under a heading that already says SETTLEMENTS, so it
+   * doesn't repeat the word. Duplicate labels are collapsed: ordering twice
+   * from the same place shouldn't read "food and food".
    */
   const inclusionNote = useMemo(() => {
     const parts: string[] = [];
     if (feeTotal > 0) parts.push("house fees");
-    if (expenses.length > 0 && expenses.length <= 2) {
-      parts.push(...expenses.map((e) => e.label));
-    } else if (expenses.length > 2) {
-      parts.push(`${expenses.length} expenses`);
+
+    const labels = [
+      ...new Set(
+        expenses.map((e) => e.label.trim()).filter((l) => l.length > 0),
+      ),
+    ];
+    if (labels.length > 0 && labels.length <= 2) {
+      parts.push(...labels);
+    } else if (labels.length > 2) {
+      parts.push(`${labels.length} expenses`);
     }
+
     if (parts.length === 0) return null;
     const list =
       parts.length === 1
         ? parts[0]
         : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-    return `Settlements include ${list}.`;
+    return `Includes ${list}`;
   }, [feeTotal, expenses]);
 
   const expenseGrandTotal = expenses.reduce(
@@ -263,18 +274,30 @@ export default function HostResults({
                   ? "With house fee"
                   : "With expenses"}
             </div>
-            <table className="w-full">
+            {/* Up to five columns on a phone. Padding and type size tighten
+                below sm so the Net column isn't clipped. */}
+            <table className="w-full table-fixed text-xs sm:text-sm">
               <thead>
-                <tr className="text-xs uppercase tracking-wide text-white/45 border-b border-white/5">
-                  <th className="text-left py-2 px-4 font-medium">Player</th>
-                  <th className="text-right py-2 px-3 font-medium">P/L</th>
+                <tr className="text-[10px] sm:text-xs uppercase tracking-wide text-white/45 border-b border-white/5">
+                  <th className="text-left py-2 pl-3 pr-1 sm:px-4 font-medium">
+                    Player
+                  </th>
+                  <th className="text-right py-2 px-1 sm:px-3 font-medium w-[22%]">
+                    P/L
+                  </th>
                   {feeTotal > 0 && (
-                    <th className="text-right py-2 px-3 font-medium">Fee</th>
+                    <th className="text-right py-2 px-1 sm:px-3 font-medium w-[18%]">
+                      Fee
+                    </th>
                   )}
                   {expenseGrandTotal > 0 && (
-                    <th className="text-right py-2 px-3 font-medium">Extras</th>
+                    <th className="text-right py-2 px-1 sm:px-3 font-medium w-[18%]">
+                      Extras
+                    </th>
                   )}
-                  <th className="text-right py-2 px-4 font-medium">Net</th>
+                  <th className="text-right py-2 pl-1 pr-3 sm:px-4 font-medium w-[24%]">
+                    Net
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -283,16 +306,16 @@ export default function HostResults({
                   const expenseDelta = r.expensePaid - r.expenseOwed;
                   return (
                     <tr key={r.playerId} className="border-t border-white/5">
-                      <td className="py-3 px-4 font-medium truncate">
+                      <td className="py-3 pl-3 pr-1 sm:px-4 font-medium truncate">
                         {r.name}
                       </td>
-                      <td className="py-3 px-3 text-right tabular-nums text-white/70">
+                      <td className="py-3 px-1 sm:px-3 text-right tabular-nums whitespace-nowrap text-white/70">
                         {r.profitLoss > 0 ? "+" : ""}
                         {formatINR(r.profitLoss)}
                       </td>
                       {feeTotal > 0 && (
                         <td
-                          className={`py-3 px-3 text-right tabular-nums ${
+                          className={`py-3 px-1 sm:px-3 text-right tabular-nums whitespace-nowrap ${
                             feeDelta > 0
                               ? "text-win"
                               : feeDelta < 0
@@ -306,7 +329,7 @@ export default function HostResults({
                       )}
                       {expenseGrandTotal > 0 && (
                         <td
-                          className={`py-3 px-3 text-right tabular-nums ${
+                          className={`py-3 px-1 sm:px-3 text-right tabular-nums whitespace-nowrap ${
                             expenseDelta > 0
                               ? "text-win"
                               : expenseDelta < 0
@@ -319,7 +342,7 @@ export default function HostResults({
                         </td>
                       )}
                       <td
-                        className={`py-3 px-4 text-right tabular-nums font-bold ${
+                        className={`py-3 pl-1 pr-3 sm:px-4 text-right tabular-nums whitespace-nowrap font-bold ${
                           r.net > 0
                             ? "text-win"
                             : r.net < 0
