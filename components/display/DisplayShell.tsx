@@ -20,6 +20,7 @@ import LiveBoard from "./LiveBoard";
 import ContentCard from "./ContentCard";
 import PlayerDrawer from "./PlayerDrawer";
 import { PlayerCard, buildPlayerCard, historyFor } from "@/lib/display/playerCard";
+import { useWakeLock } from "@/lib/display/useWakeLock";
 
 const LIVE_POLL_MS = 1000; // buy-ins land on the TV within a second
 const HISTORY_POLL_MS = 5 * 60 * 1000; // safety net; also refetched on change
@@ -49,6 +50,10 @@ export default function DisplayShell({
   password: string;
   onSignOut: () => void;
 }) {
+  // The board sits untouched on a TV all night — exactly what every device
+  // reads as "idle". Re-requested on visibility change; see useWakeLock.
+  useWakeLock();
+
   const [live, setLive] = useState<DisplayLiveSession | null>(null);
   const [history, setHistory] = useState<DisplayHistorySession[] | null>(null);
   const [error, setError] = useState<string | null>(null);

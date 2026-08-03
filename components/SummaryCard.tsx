@@ -9,6 +9,12 @@ interface SummaryCardProps {
   results: PlayerResult[];
   settlements: Settlement[];
   totalPot: number;
+  /**
+   * One line under the settlements heading, e.g. "Includes house fees,
+   * Biryani and Drinks". Built by the caller so it degrades by count rather
+   * than growing a paragraph. Omitted when nothing but poker is in play.
+   */
+  inclusionNote?: string | null;
   /** Unused — kept for API compatibility. */
   biggestWinner?: PlayerResult | null;
 }
@@ -230,7 +236,7 @@ function MiniAvatar({ name, size }: { name: string; size: number }) {
 }
 
 const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
-  function SummaryCard({ results, settlements, totalPot }, ref) {
+  function SummaryCard({ results, settlements, totalPot, inclusionNote }, ref) {
     const playerCount = Math.max(results.length, 1);
     const settlementCount = Math.max(settlements.length, 1);
     const topWinner =
@@ -246,6 +252,11 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
       : 0;
     const totalPotPanelHeight = clamp(158 - pressure * 8, 128, 158);
     const sectionTitleHeight = 62;
+    // The settlements heading grows a second line when there's an inclusion
+    // note. Everything below is laid out off this, so it can't stay fixed.
+    const settlementsTitleHeight = inclusionNote
+      ? sectionTitleHeight + 30
+      : sectionTitleHeight;
     const tableHeaderHeight = clamp(64 - pressure * 2, 58, 64);
     const tableTopOffset = 22;
     const tableRowHeight = clamp(
@@ -270,7 +281,7 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
     const headerFont = clamp(rowFont - 7, 19, 25);
     const settlementRowHeight = Math.max(
       44,
-      (settlementsHeight - sectionTitleHeight - 14) / settlementCount,
+      (settlementsHeight - settlementsTitleHeight - 14) / settlementCount,
     );
     const settlementFont = clamp(settlementRowHeight * 0.46, 23, 34);
     const titleFont = clamp(headerHeight * 0.42, 56, 70);
@@ -596,13 +607,37 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
             boxShadow:
               "0 8px 18px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
             display: "grid",
-            gridTemplateRows: `${sectionTitleHeight}px 1fr`,
+            gridTemplateRows: `${settlementsTitleHeight}px 1fr`,
             overflow: "hidden",
             position: "relative",
             zIndex: 2,
           }}
         >
-          <SectionTitle>SETTLEMENTS</SectionTitle>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SectionTitle>SETTLEMENTS</SectionTitle>
+            {inclusionNote && (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 21,
+                  fontWeight: 700,
+                  color: MUTED,
+                  textAlign: "center",
+                  padding: "0 24px",
+                  lineHeight: "24px",
+                }}
+              >
+                {inclusionNote}
+              </div>
+            )}
+          </div>
           {settlements.length === 0 ? (
             <div
               style={{

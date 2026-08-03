@@ -13,10 +13,22 @@ import {
   sumBuyIns,
 } from "@/lib/db/sessions";
 import { RosterPlayer, createPlayer, listPlayers } from "@/lib/db/players";
+import {
+  createExpense,
+  deleteExpense,
+  listExpenses,
+  updateExpense,
+} from "@/lib/db/expenses";
+import {
+  SessionExpense,
+  expenseTotal,
+  expensesInvolving,
+} from "@/lib/expenses";
 import { formatINR } from "@/lib/format";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ExpenseSheet from "./ExpenseSheet";
 import PlayerAvatar from "./PlayerAvatar";
 
 const QUICK_AMOUNTS = [1000, 2000, 4000, 5000];
@@ -50,9 +62,57 @@ export default function HostLiveSession({
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
 
+  // Expenses — food and the like. A separate ledger; never touches chips.
+  const [expenses, setExpenses] = useState<SessionExpense[]>([]);
+  const [expenseSheet, setExpenseSheet] = useState<
+    { mode: "new" } | { mode: "edit"; expense: SessionExpense } | null
+  >(null);
+  const [pendingExpenseDelete, setPendingExpenseDelete] =
+    useState<SessionExpense | null>(null);
+  const [blockedRemove, setBlockedRemove] = useState<{
+    name: string;
+    labels: string[];
+  } | null>(null);
+
   useEffect(() => {
     listPlayers().then(setRoster).catch(() => setRoster([]));
   }, []);
+
+  const refreshExpenses = useMemo(
+    () => () =>
+      listExpenses(session.id)
+        .then(setExpenses)
+        .catch(() => setExpenses([])),
+    [session.id],
+  );
+
+  useEffect(() => {
+    refreshExpenses();
+  }, [refreshExpenses]);
+
+  const expenseGrandTotal = expenses.reduce(
+    (sum, e) => sum + expenseTotal(e),
+    0,
+  );
+
+  const nameFor = (playerId: string) =>
+    players.find((p) => p.player_id === playerId)?.display_name ?? "Someone";
+
+  /**
+   * Removing someone named in an expense would drop their share and quietly
+   * unbalance the ledger, so it's blocked until the expense is edited.
+   */
+  function requestRemove(p: DbSessionPlayer) {
+    const involved = expensesInvolving(expenses, p.player_id);
+    if (involved.length > 0) {
+      setBlockedRemove({
+        name: p.display_name,
+        labels: involved.map((e) => e.label),
+      });
+      return;
+    }
+    setPendingRemove(p);
+  }
 
   const totalPot = useMemo(
     () => players.reduce((s, p) => s + sumBuyIns(p), 0),
@@ -276,10 +336,14 @@ export default function HostLiveSession({
                     </div>
                     <button
                       onClick={() => {
-                        if (p.buy_ins.length === 0) {
+                        // requestRemove blocks anyone named in an expense.
+                        if (
+                          p.buy_ins.length === 0 &&
+                          expensesInvolving(expenses, p.player_id).length === 0
+                        ) {
                           act(() => removeSessionPlayer(p.id));
                         } else {
-                          setPendingRemove(p);
+                          requestRemove(p);
                         }
                       }}
                       disabled={busy}
@@ -374,6 +438,70 @@ export default function HostLiveSession({
             );
           })}
 
+          {/* Expenses — food, drinks, whatever got ordered. A separate
+              ledger: never enters buy-ins, chips or anyone's poker record. */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <h2 className="text-sm uppercase tracking-wide text-white/50">
+                Expenses
+              </h2>
+              {expenseGrandTotal > 0 && (
+                <span className="text-sm tabular-nums text-white/70">
+                  {formatINR(expenseGrandTotal)}
+                </span>
+              )}
+            </div>
+
+            {expenses.length === 0 ? (
+              <p className="text-white/35 text-xs mb-3">
+                Ordered food? Add it here and it lands in the settlements
+                instead of the chips.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 my-3">
+                {expenses.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2"
+                  >
+                    <button
+                      onClick={() => setExpenseSheet({ mode: "edit", expense: e })}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <span className="block text-sm font-medium truncate">
+                        {e.label}
+                      </span>
+                      <span className="block text-white/40 text-xs truncate">
+                        {nameFor(e.payerPlayerId)} paid · {e.shares.length}{" "}
+                        {e.shares.length === 1 ? "person" : "people"}
+                      </span>
+                    </button>
+                    <span className="tabular-nums text-sm text-white/70 shrink-0">
+                      {formatINR(expenseTotal(e))}
+                    </span>
+                    <button
+                      onClick={() => setPendingExpenseDelete(e)}
+                      disabled={busy}
+                      title={`Delete ${e.label}`}
+                      className="text-white/25 hover:text-loss text-base leading-none px-1.5 py-0.5 rounded hover:bg-loss/10 transition-colors shrink-0"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setExpenseSheet({ mode: "new" })}
+              disabled={busy || players.length === 0}
+            >
+              Add expense
+            </Button>
+          </Card>
+
           <Button
             size="lg"
             variant="danger"
@@ -393,6 +521,71 @@ export default function HostLiveSession({
           </button>
         </div>
       </div>
+
+      {expenseSheet && (
+        <ExpenseSheet
+          players={players}
+          existing={
+            expenseSheet.mode === "edit" ? expenseSheet.expense : null
+          }
+          defaultPayerId={session.host_player_id}
+          onClose={() => setExpenseSheet(null)}
+          onSave={async (input) => {
+            if (expenseSheet.mode === "edit") {
+              await updateExpense({
+                expenseId: expenseSheet.expense.id,
+                ...input,
+              });
+            } else {
+              await createExpense({ sessionId: session.id, ...input });
+            }
+            await refreshExpenses();
+          }}
+        />
+      )}
+
+      <ConfirmDialog
+        open={pendingExpenseDelete !== null}
+        danger
+        title="Delete this expense?"
+        message={
+          pendingExpenseDelete
+            ? `"${pendingExpenseDelete.label}" — ${formatINR(expenseTotal(pendingExpenseDelete))} owed to ${nameFor(pendingExpenseDelete.payerPlayerId)}. It comes straight back out of the settlements.`
+            : ""
+        }
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          const e = pendingExpenseDelete;
+          setPendingExpenseDelete(null);
+          if (!e) return;
+          setBusy(true);
+          try {
+            await deleteExpense(e.id);
+            await refreshExpenses();
+          } catch (err) {
+            setError(
+              err instanceof Error ? err.message : "Could not delete expense",
+            );
+          } finally {
+            setBusy(false);
+          }
+        }}
+        onCancel={() => setPendingExpenseDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={blockedRemove !== null}
+        title="Remove the expense first"
+        message={
+          blockedRemove
+            ? `${blockedRemove.name} is part of ${blockedRemove.labels.join(", ")}. Dropping them would leave that expense short and the settlements wouldn't balance. Edit or delete it first.`
+            : ""
+        }
+        confirmLabel="Got it"
+        cancelLabel="Close"
+        onConfirm={() => setBlockedRemove(null)}
+        onCancel={() => setBlockedRemove(null)}
+      />
 
       <ConfirmDialog
         open={pending !== null}

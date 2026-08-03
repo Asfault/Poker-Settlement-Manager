@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
 import { LoadedSession, sumBuyIns } from "@/lib/db/sessions";
 import { computeNetRows, settleNet, totalHouseFee } from "@/lib/houseFee";
+import { listExpenses } from "@/lib/db/expenses";
+import { SessionExpense, expenseTotal } from "@/lib/expenses";
 import { formatDateTime, formatDuration, formatINR } from "@/lib/format";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
@@ -31,6 +33,13 @@ export default function HostResults({
   const innerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [expenses, setExpenses] = useState<SessionExpense[]>([]);
+
+  useEffect(() => {
+    listExpenses(session.id)
+      .then(setExpenses)
+      .catch(() => setExpenses([]));
+  }, [session.id]);
 
   // Editing buy-ins can leave chips out of balance. Surface it rather than
   // letting a broken session sit quietly in the stats.
@@ -51,6 +60,7 @@ export default function HostResults({
       })),
       session.house_fee_per_player,
       session.host_player_id,
+      expenses,
     );
     return {
       rows: r,
@@ -58,7 +68,37 @@ export default function HostResults({
       pot: r.reduce((s, x) => s + x.totalBuyIn, 0),
       feeTotal: totalHouseFee(r),
     };
-  }, [players, session.house_fee_per_player, session.host_player_id]);
+  }, [
+    players,
+    session.house_fee_per_player,
+    session.host_player_id,
+    expenses,
+  ]);
+
+  /**
+   * "Settlements include house fees, Pizza and Burgers" — degrading by count
+   * so three orders don't produce a paragraph.
+   */
+  const inclusionNote = useMemo(() => {
+    const parts: string[] = [];
+    if (feeTotal > 0) parts.push("house fees");
+    if (expenses.length > 0 && expenses.length <= 2) {
+      parts.push(...expenses.map((e) => e.label));
+    } else if (expenses.length > 2) {
+      parts.push(`${expenses.length} expenses`);
+    }
+    if (parts.length === 0) return null;
+    const list =
+      parts.length === 1
+        ? parts[0]
+        : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+    return `Settlements include ${list}.`;
+  }, [feeTotal, expenses]);
+
+  const expenseGrandTotal = expenses.reduce(
+    (sum, e) => sum + expenseTotal(e),
+    0,
+  );
 
   // Scale the export preview to fit its container.
   useEffect(() => {
@@ -211,24 +251,36 @@ export default function HostResults({
           Cards only. This is what lifetime stats are built from.
         </p>
 
-        {/* Net breakdown, only when a fee applies */}
-        {feeTotal > 0 && (
+        {/* Net breakdown, whenever a fee or an expense shifts the numbers.
+            This is what answers "why am I not paying Ram for the pizza" —
+            settlements run on net, so the transfer often goes elsewhere. */}
+        {(feeTotal > 0 || expenseGrandTotal > 0) && (
           <Card className="overflow-hidden mb-5">
             <div className="px-4 py-2.5 bg-felt-700/60 text-xs uppercase tracking-wide text-white/60">
-              With house fee
+              {feeTotal > 0 && expenseGrandTotal > 0
+                ? "With fee and expenses"
+                : feeTotal > 0
+                  ? "With house fee"
+                  : "With expenses"}
             </div>
             <table className="w-full">
               <thead>
                 <tr className="text-xs uppercase tracking-wide text-white/45 border-b border-white/5">
                   <th className="text-left py-2 px-4 font-medium">Player</th>
                   <th className="text-right py-2 px-3 font-medium">P/L</th>
-                  <th className="text-right py-2 px-3 font-medium">Fee</th>
+                  {feeTotal > 0 && (
+                    <th className="text-right py-2 px-3 font-medium">Fee</th>
+                  )}
+                  {expenseGrandTotal > 0 && (
+                    <th className="text-right py-2 px-3 font-medium">Extras</th>
+                  )}
                   <th className="text-right py-2 px-4 font-medium">Net</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => {
                   const feeDelta = r.houseFeeReceived - r.houseFeeOwed;
+                  const expenseDelta = r.expensePaid - r.expenseOwed;
                   return (
                     <tr key={r.playerId} className="border-t border-white/5">
                       <td className="py-3 px-4 font-medium truncate">
@@ -238,18 +290,34 @@ export default function HostResults({
                         {r.profitLoss > 0 ? "+" : ""}
                         {formatINR(r.profitLoss)}
                       </td>
-                      <td
-                        className={`py-3 px-3 text-right tabular-nums ${
-                          feeDelta > 0
-                            ? "text-win"
-                            : feeDelta < 0
-                              ? "text-loss/80"
-                              : "text-white/40"
-                        }`}
-                      >
-                        {feeDelta > 0 ? "+" : ""}
-                        {formatINR(feeDelta)}
-                      </td>
+                      {feeTotal > 0 && (
+                        <td
+                          className={`py-3 px-3 text-right tabular-nums ${
+                            feeDelta > 0
+                              ? "text-win"
+                              : feeDelta < 0
+                                ? "text-loss/80"
+                                : "text-white/40"
+                          }`}
+                        >
+                          {feeDelta > 0 ? "+" : ""}
+                          {formatINR(feeDelta)}
+                        </td>
+                      )}
+                      {expenseGrandTotal > 0 && (
+                        <td
+                          className={`py-3 px-3 text-right tabular-nums ${
+                            expenseDelta > 0
+                              ? "text-win"
+                              : expenseDelta < 0
+                                ? "text-loss/80"
+                                : "text-white/40"
+                          }`}
+                        >
+                          {expenseDelta > 0 ? "+" : ""}
+                          {formatINR(expenseDelta)}
+                        </td>
+                      )}
                       <td
                         className={`py-3 px-4 text-right tabular-nums font-bold ${
                           r.net > 0
@@ -267,6 +335,14 @@ export default function HostResults({
                 })}
               </tbody>
             </table>
+            {expenseGrandTotal > 0 && (
+              <p className="text-white/35 text-xs px-4 py-3 border-t border-white/5">
+                {expenses.map((e) => e.label).join(", ")} —{" "}
+                {formatINR(expenseGrandTotal)} in all. Settlements run on Net,
+                so a payment may go to someone other than whoever bought the
+                food.
+              </p>
+            )}
           </Card>
         )}
 
@@ -310,10 +386,8 @@ export default function HostResults({
               ))}
             </ul>
           )}
-          {feeTotal > 0 && (
-            <p className="text-white/35 text-xs mt-3">
-              Includes the {formatINR(session.house_fee_per_player)} house fee.
-            </p>
+          {inclusionNote && (
+            <p className="text-white/35 text-xs mt-3">{inclusionNote}</p>
           )}
         </Card>
 
@@ -358,6 +432,7 @@ export default function HostResults({
                 results={summaryResults}
                 settlements={settlements}
                 totalPot={pot}
+                inclusionNote={inclusionNote}
               />
             </div>
           </div>

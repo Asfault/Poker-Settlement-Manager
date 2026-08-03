@@ -1,16 +1,21 @@
 import type { Settlement } from "./types";
 import { settleBalances } from "./settlement";
+import {
+  ExpenseBalance,
+  SessionExpense,
+  computeExpenseBalances,
+} from "./expenses";
 
 /**
- * House fee is deliberately kept OUT of the poker ledger.
+ * House fee and expenses are deliberately kept OUT of the poker ledger.
  *
  * Poker P/L (chips left − buy-ins) is what feeds every lifetime stat, so it
- * has to reflect cards only. The fee is a separate transfer that gets layered
- * on at settlement time.
+ * has to reflect cards only. The fee and any food ordered are separate
+ * transfers layered on at settlement time.
  *
- * Because poker P/L is zero-sum and the fee is a pure transfer (every rupee
- * owed is a rupee received), the net always sums to zero and settlements
- * always balance.
+ * Because poker P/L is zero-sum and both transfers are zero-sum too (every
+ * rupee owed is a rupee received), the net always sums to zero and
+ * settlements always balance.
  */
 
 export interface NetRow {
@@ -26,7 +31,14 @@ export interface NetRow {
   houseFeeOwed: number;
   /** What the host collects from everyone else. Positive number. */
   houseFeeReceived: number;
-  /** profitLoss − houseFeeOwed + houseFeeReceived. Drives settlements. */
+  /** Sum of shares on expenses this player paid for. */
+  expensePaid: number;
+  /** Sum of this player's own shares across every expense. */
+  expenseOwed: number;
+  /**
+   * profitLoss − houseFeeOwed + houseFeeReceived + expensePaid − expenseOwed.
+   * Drives settlements.
+   */
   net: number;
 }
 
@@ -43,6 +55,8 @@ export function computeNetRows(
   players: SessionPlayerInput[],
   houseFeePerPlayer: number,
   hostPlayerId: string | null,
+  /** Optional — omit on sessions where nothing was ordered. */
+  expenses: SessionExpense[] = [],
 ): NetRow[] {
   const fee = Math.max(0, Math.round(houseFeePerPlayer));
 
@@ -51,11 +65,17 @@ export function computeNetRows(
   ).length;
   const totalCollected = fee * payingCount;
 
+  const expenseBalances: Map<string, ExpenseBalance> =
+    computeExpenseBalances(expenses);
+
   return players.map((p) => {
     const profitLoss = p.chipsLeft - p.totalBuyIn;
     const isHost = p.playerId === hostPlayerId;
     const owed = !isHost && p.paysHouseFee ? fee : 0;
     const received = isHost ? totalCollected : 0;
+    const expense = expenseBalances.get(p.playerId);
+    const expensePaid = expense?.paid ?? 0;
+    const expenseOwed = expense?.owed ?? 0;
     return {
       playerId: p.playerId,
       name: p.name,
@@ -64,7 +84,9 @@ export function computeNetRows(
       profitLoss,
       houseFeeOwed: owed,
       houseFeeReceived: received,
-      net: profitLoss - owed + received,
+      expensePaid,
+      expenseOwed,
+      net: profitLoss - owed + received + expensePaid - expenseOwed,
     };
   });
 }
