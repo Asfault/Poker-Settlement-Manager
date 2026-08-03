@@ -46,13 +46,10 @@ export default function ExpenseSheet({
     existing ? "custom" : "equal",
   );
   const [total, setTotal] = useState("");
+  // Nobody is selected for a new expense — picking the two or three people
+  // who actually ordered is quicker than deselecting the four who didn't.
   const [selected, setSelected] = useState<Set<string>>(
-    () =>
-      new Set(
-        existing
-          ? existing.shares.map((s) => s.playerId)
-          : players.map((p) => p.player_id),
-      ),
+    () => new Set(existing ? existing.shares.map((s) => s.playerId) : []),
   );
   const [amounts, setAmounts] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
@@ -300,9 +297,9 @@ export default function ExpenseSheet({
               </span>
               {absorbed > 0 && (
                 <>
-                  {" "}
-                  · {formatINR(absorbed)} doesn&apos;t divide evenly and comes
-                  out of their pocket
+                  {" · "}
+                  {formatINR(absorbed)}
+                  {" doesn't divide evenly and comes out of their pocket"}
                 </>
               )}
             </>

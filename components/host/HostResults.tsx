@@ -85,7 +85,8 @@ export default function HostResults({
    */
   const inclusionNote = useMemo(() => {
     const parts: string[] = [];
-    if (feeTotal > 0) parts.push("house fees");
+    // Title case, since expense labels alongside it are proper nouns.
+    if (feeTotal > 0) parts.push("House Fees");
 
     const labels = [
       ...new Set(
