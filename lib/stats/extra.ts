@@ -30,14 +30,6 @@ export interface Records {
   biggestPot: { sessionId: string; at: number; amount: number } | null;
   longestSession: { sessionId: string; at: number; ms: number } | null;
   mostBuyIns: NightRecord | null;
-  /** Widest gap between the best and worst player in a single night. */
-  biggestSwing: {
-    sessionId: string;
-    at: number;
-    amount: number;
-    winner: string;
-    loser: string;
-  } | null;
 }
 
 export function computeRecords(sessions: SessionSummary[]): Records {
@@ -47,7 +39,6 @@ export function computeRecords(sessions: SessionSummary[]): Records {
     biggestPot: null,
     longestSession: null,
     mostBuyIns: null,
-    biggestSwing: null,
   };
 
   for (const s of sessions) {
@@ -102,21 +93,6 @@ export function computeRecords(sessions: SessionSummary[]): Records {
       }
     }
 
-    if (s.players.length >= 2) {
-      const sorted = [...s.players].sort((a, b) => b.profitLoss - a.profitLoss);
-      const top = sorted[0];
-      const bottom = sorted[sorted.length - 1];
-      const spread = top.profitLoss - bottom.profitLoss;
-      if (out.biggestSwing === null || spread > out.biggestSwing.amount) {
-        out.biggestSwing = {
-          sessionId: s.id,
-          at: s.startedAt,
-          amount: spread,
-          winner: top.name,
-          loser: bottom.name,
-        };
-      }
-    }
   }
 
   return out;
@@ -330,6 +306,24 @@ export interface PlayerExtras {
    * session the app actually timed.
    */
   rebuyTiming: { avgMinute: number; samples: number } | null;
+  /**
+   * Nights survived on a single buy-in, out of the timed nights they played.
+   * Backfilled sessions are excluded — they collapse every player's buy-ins
+   * into one row, which would make the whole table look like rocks.
+   */
+  rockNights: { nights: number; outOf: number };
+  /**
+   * How often they were first at the table to reload, out of the timed nights
+   * where anyone reloaded at all.
+   */
+  firstToReload: { nights: number; outOf: number };
+  /**
+   * Average share of the night's pot they put in, and the share they left
+   * with. The pot is zero-sum, so the two are directly comparable: taking out
+   * more than you put in is the whole game. Both 0–1.
+   */
+  potShareIn: number;
+  potShareOut: number;
 }
 
 export interface TableSizeRow {
@@ -370,12 +364,37 @@ export function computePlayerExtras(
     cumulative: { at: number; total: number }[];
     tableSizes: Map<number, { sessions: number; total: number }>;
     rebuyOffsets: number[];
+    rockNights: number;
+    timedNights: number;
+    firstToReload: number;
+    reloadNights: number;
+    shareIn: number[];
+    shareOut: number[];
   }
 
   const acc = new Map<string, Acc>();
 
   chronological.forEach((s, sessionIndex) => {
     const ranked = [...s.players].sort((a, b) => b.profitLoss - a.profitLoss);
+
+    // Who reloaded first tonight. Backfill stamps every buy-in at started_at,
+    // so it can't answer this and is skipped entirely.
+    let earliestReload = Infinity;
+    const firstReloaders = new Set<string>();
+    if (!s.isBackfill) {
+      for (const p of s.players) {
+        const firstRebuy = p.buyInTimes[1];
+        if (firstRebuy === undefined) continue;
+        if (firstRebuy < earliestReload) {
+          earliestReload = firstRebuy;
+          firstReloaders.clear();
+          firstReloaders.add(p.playerId);
+        } else if (firstRebuy === earliestReload) {
+          firstReloaders.add(p.playerId);
+        }
+      }
+    }
+    const anyoneReloaded = firstReloaders.size > 0;
 
     for (const p of s.players) {
       let e = acc.get(p.playerId);
@@ -395,8 +414,29 @@ export function computePlayerExtras(
           cumulative: [],
           tableSizes: new Map(),
           rebuyOffsets: [],
+          rockNights: 0,
+          timedNights: 0,
+          firstToReload: 0,
+          reloadNights: 0,
+          shareIn: [],
+          shareOut: [],
         };
         acc.set(p.playerId, e);
+      }
+
+      if (!s.isBackfill) {
+        e.timedNights += 1;
+        if (p.buyInCount === 1) e.rockNights += 1;
+        if (anyoneReloaded) {
+          e.reloadNights += 1;
+          if (firstReloaders.has(p.playerId)) e.firstToReload += 1;
+        }
+      }
+
+      // The pot is zero-sum, so share in and share out are comparable.
+      if (s.pot > 0) {
+        e.shareIn.push(p.totalBuyIn / s.pot);
+        e.shareOut.push(p.chipsLeft / s.pot);
       }
 
       const size = s.players.length;
@@ -478,6 +518,10 @@ export function computePlayerExtras(
               samples: e.rebuyOffsets.length,
             }
           : null,
+      rockNights: { nights: e.rockNights, outOf: e.timedNights },
+      firstToReload: { nights: e.firstToReload, outOf: e.reloadNights },
+      potShareIn: mean(e.shareIn),
+      potShareOut: mean(e.shareOut),
     };
   });
 }

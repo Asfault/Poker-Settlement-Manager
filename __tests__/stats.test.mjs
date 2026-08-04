@@ -61,7 +61,6 @@ function computeRecords(sessions) {
     biggestPot: null,
     longestSession: null,
     mostBuyIns: null,
-    biggestSwing: null,
   };
   for (const s of sessions) {
     if (out.biggestPot === null || s.pot > out.biggestPot.amount) {
@@ -87,18 +86,6 @@ function computeRecords(sessions) {
         (out.mostBuyIns === null || p.buyInCount > out.mostBuyIns.amount)
       ) {
         out.mostBuyIns = { name: p.name, amount: p.buyInCount };
-      }
-    }
-    if (s.players.length >= 2) {
-      const sorted = [...s.players].sort((a, b) => b.profitLoss - a.profitLoss);
-      const spread =
-        sorted[0].profitLoss - sorted[sorted.length - 1].profitLoss;
-      if (out.biggestSwing === null || spread > out.biggestSwing.amount) {
-        out.biggestSwing = {
-          amount: spread,
-          winner: sorted[0].name,
-          loser: sorted[sorted.length - 1].name,
-        };
       }
     }
   }
@@ -152,6 +139,24 @@ function computePlayerExtras(sessions) {
 
   chronological.forEach((s, sessionIndex) => {
     const ranked = [...s.players].sort((a, b) => b.profitLoss - a.profitLoss);
+
+    let earliestReload = Infinity;
+    const firstReloaders = new Set();
+    if (!s.isBackfill) {
+      for (const p of s.players) {
+        const firstRebuy = (p.buyInTimes ?? [])[1];
+        if (firstRebuy === undefined) continue;
+        if (firstRebuy < earliestReload) {
+          earliestReload = firstRebuy;
+          firstReloaders.clear();
+          firstReloaders.add(p.playerId);
+        } else if (firstRebuy === earliestReload) {
+          firstReloaders.add(p.playerId);
+        }
+      }
+    }
+    const anyoneReloaded = firstReloaders.size > 0;
+
     for (const p of s.players) {
       let e = acc.get(p.playerId);
       if (!e) {
@@ -168,8 +173,26 @@ function computePlayerExtras(sessions) {
           firstIndex: sessionIndex,
           tableSizes: new Map(),
           rebuyOffsets: [],
+          rockNights: 0,
+          timedNights: 0,
+          firstToReload: 0,
+          reloadNights: 0,
+          shareIn: [],
+          shareOut: [],
         };
         acc.set(p.playerId, e);
+      }
+      if (!s.isBackfill) {
+        e.timedNights += 1;
+        if (p.buyInCount === 1) e.rockNights += 1;
+        if (anyoneReloaded) {
+          e.reloadNights += 1;
+          if (firstReloaders.has(p.playerId)) e.firstToReload += 1;
+        }
+      }
+      if (s.pot > 0) {
+        e.shareIn.push(p.totalBuyIn / s.pot);
+        e.shareOut.push(p.chipsLeft / s.pot);
       }
       const size = s.players.length;
       const bucket = e.tableSizes.get(size) ?? { sessions: 0, total: 0 };
@@ -227,6 +250,10 @@ function computePlayerExtras(sessions) {
         e.rebuyOffsets.length > 0
           ? { avgMinute: mean(e.rebuyOffsets), samples: e.rebuyOffsets.length }
           : null,
+      rockNights: { nights: e.rockNights, outOf: e.timedNights },
+      firstToReload: { nights: e.firstToReload, outOf: e.reloadNights },
+      potShareIn: mean(e.shareIn),
+      potShareOut: mean(e.shareOut),
     };
   });
 }
@@ -349,11 +376,6 @@ console.log("\nRecords");
     r.mostBuyIns,
     { name: "Sita", amount: 3 },
   );
-  check("widest table is top minus bottom", r.biggestSwing.amount, 18000);
-  check("widest table names both ends", [r.biggestSwing.winner, r.biggestSwing.loser], [
-    "Sita",
-    "Ram",
-  ]);
 }
 
 // ---------- group extras ----------
@@ -599,6 +621,111 @@ console.log("\nTable size and rebuy timing");
     ram.rebuyTiming,
     null,
   );
+}
+
+// ---------- rock nights, reload order, pot share ----------
+
+console.log("\nRock nights and reload order");
+{
+  const H = 3600000;
+  const start = 1000 * DAY;
+  const sessions = [
+    // Ram reloads at +30m, Sita at +90m. Kula never reloads.
+    session({
+      id: "one",
+      startedAt: start,
+      players: [
+        player("p1", "Ram", 2000, 0, 2, [start, start + 0.5 * H]),
+        player("p2", "Sita", 2000, 4000, 2, [start, start + 1.5 * H]),
+        player("p3", "Kula", 1000, 1000, 1, [start]),
+      ],
+    }),
+    // Nobody reloads at all — this night must not count against anyone's
+    // reload record, but it is a rock night for all three.
+    session({
+      id: "two",
+      startedAt: start + DAY,
+      players: [
+        player("p1", "Ram", 1000, 500, 1, [start + DAY]),
+        player("p2", "Sita", 1000, 1500, 1, [start + DAY]),
+        player("p3", "Kula", 1000, 1000, 1, [start + DAY]),
+      ],
+    }),
+  ];
+  const byId = new Map(computePlayerExtras(sessions).map((e) => [e.playerId, e]));
+
+  check("earliest reloader is credited", byId.get("p1").firstToReload, {
+    nights: 1,
+    outOf: 1,
+  });
+  check("a later reloader is not", byId.get("p2").firstToReload, {
+    nights: 0,
+    outOf: 1,
+  });
+  check(
+    "a night nobody reloaded isn't held against anyone",
+    byId.get("p3").firstToReload,
+    { nights: 0, outOf: 1 },
+  );
+  check("rock nights count single buy-in nights", byId.get("p3").rockNights, {
+    nights: 2,
+    outOf: 2,
+  });
+  check("a reloader gets credit only for the quiet night", byId.get("p1").rockNights, {
+    nights: 1,
+    outOf: 2,
+  });
+}
+{
+  // Backfill collapses buy-ins into one row. Counting it would make the whole
+  // table look like rocks and claim nobody ever reloaded.
+  const start = 1000 * DAY;
+  const sessions = [
+    session({
+      id: "old",
+      startedAt: start,
+      isBackfill: true,
+      players: [
+        player("p1", "Ram", 9000, 0, 1, [start]),
+        player("p2", "Sita", 1000, 10000, 1, [start]),
+      ],
+    }),
+  ];
+  const ram = computePlayerExtras(sessions).find((e) => e.playerId === "p1");
+  check("backfill contributes no rock nights", ram.rockNights, {
+    nights: 0,
+    outOf: 0,
+  });
+  check("backfill contributes no reload nights", ram.firstToReload, {
+    nights: 0,
+    outOf: 0,
+  });
+}
+
+console.log("\nShare of the pot");
+{
+  const start = 1000 * DAY;
+  // Pot is 4000. Ram puts in 1000 (25%) and leaves with 2000 (50%).
+  const sessions = [
+    session({
+      id: "a",
+      startedAt: start,
+      players: [
+        player("p1", "Ram", 1000, 2000),
+        player("p2", "Sita", 1000, 1000),
+        player("p3", "Kula", 2000, 1000),
+      ],
+    }),
+  ];
+  const byId = new Map(computePlayerExtras(sessions).map((e) => [e.playerId, e]));
+  close("share put in", byId.get("p1").potShareIn, 0.25);
+  close("share taken out", byId.get("p1").potShareOut, 0.5);
+  close("a bigger contributor's share in", byId.get("p3").potShareIn, 0.5);
+  close("who left with less", byId.get("p3").potShareOut, 0.25);
+  const totalIn = [...byId.values()].reduce((s, e) => s + e.potShareIn, 0);
+  const totalOut = [...byId.values()].reduce((s, e) => s + e.potShareOut, 0);
+  close("shares in sum to the whole pot", totalIn, 1);
+  close("shares out sum to the whole pot", totalOut, 1);
 }
 
 console.log(`\n${pass} passed, ${fail} failed.\n`);

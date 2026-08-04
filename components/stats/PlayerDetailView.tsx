@@ -217,7 +217,7 @@ export default function PlayerDetailView({
             value={String(player.totalBuyInCount)}
           />
           <DetailRow
-            label="Per night"
+            label="Buy-ins per night"
             value={(player.totalBuyInCount / player.sessions).toFixed(1)}
           />
           <DetailRow
@@ -228,6 +228,23 @@ export default function PlayerDetailView({
                 : "never rebought"
             }
           />
+          {extras.rockNights.outOf > 0 && (
+            <DetailRow
+              label="Rock nights"
+              value={`${extras.rockNights.nights} of ${extras.rockNights.outOf}`}
+            />
+          )}
+          {extras.firstToReload.outOf > 0 && (
+            <DetailRow
+              label="First to reload"
+              value={`${extras.firstToReload.nights} of ${extras.firstToReload.outOf}`}
+              tone={
+                extras.firstToReload.nights > extras.firstToReload.outOf / 2
+                  ? "loss"
+                  : undefined
+              }
+            />
+          )}
           <DetailRow
             label="Attendance"
             value={`${Math.round(extras.attendanceRate * 100)}%`}
@@ -256,12 +273,53 @@ export default function PlayerDetailView({
         </div>
         {extras.rebuyTiming && (
           <p className="text-white/30 text-xs mt-3">
-            Rebuy timing from {extras.rebuyTiming.samples} rebuy
-            {extras.rebuyTiming.samples === 1 ? "" : "s"} in sessions the app
-            timed. Games entered as history aren&apos;t counted.
+            Rebuy timing, rock nights and reload order come from sessions the
+            app timed. Games entered as history aren&apos;t counted — they
+            store one lump buy-in and would make everyone look like a rock.
           </p>
         )}
       </Card>
+
+      {/* Put in vs took out. The pot is zero-sum, so these two shares are
+          directly comparable — leaving with more than you brought is the
+          whole game, expressed without reference to table size. */}
+      {extras.potShareOut > 0 && (
+        <>
+          <h2 className="text-sm uppercase tracking-wide text-white/50 mb-2">
+            Share of the pot
+          </h2>
+          <Card className="p-4 mb-5">
+            <div className="flex items-end gap-6">
+              <div>
+                <div className="text-white/45 text-xs">Puts in</div>
+                <div className="text-xl font-bold tabular-nums mt-0.5">
+                  {(extras.potShareIn * 100).toFixed(1)}%
+                </div>
+              </div>
+              <div className="text-white/25 pb-1.5">→</div>
+              <div>
+                <div className="text-white/45 text-xs">Leaves with</div>
+                <div
+                  className={`text-xl font-bold tabular-nums mt-0.5 ${
+                    extras.potShareOut > extras.potShareIn
+                      ? "text-win"
+                      : extras.potShareOut < extras.potShareIn
+                        ? "text-loss"
+                        : "text-white"
+                  }`}
+                >
+                  {(extras.potShareOut * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            <p className="text-white/30 text-xs mt-3">
+              Average share of each night&apos;s money. Leaving with a bigger
+              share than you brought means you&apos;re up, whatever the table
+              size.
+            </p>
+          </Card>
+        </>
+      )}
 
       <h2 className="text-sm uppercase tracking-wide text-white/50 mb-2">
         Every night

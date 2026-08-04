@@ -185,14 +185,6 @@ export default function StatsView({
             tone="loss"
           />
         )}
-        {records.biggestSwing && (
-          <RecordRow
-            label="Widest table"
-            who={`${records.biggestSwing.winner} over ${records.biggestSwing.loser}`}
-            value={formatINR(records.biggestSwing.amount)}
-            at={records.biggestSwing.at}
-          />
-        )}
         {records.mostBuyIns && records.mostBuyIns.amount > 1 && (
           <RecordRow
             label="Most buy-ins"
