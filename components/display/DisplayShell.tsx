@@ -29,12 +29,12 @@ const LIVE_POLL_MS = 1000; // buy-ins land on the TV within a second
 const HISTORY_POLL_MS = 5 * 60 * 1000; // safety net; also refetched on change
 const FILLER_MS = 15000;
 const ALERT_MS = 12000;
-const RECENT_MEMORY = 8;
+const RECENT_MEMORY = 15;
 /**
  * Minimum gap between alerts. Without this, entering several buy-ins in a
  * row fires a queue of them back to back and the board disappears.
  */
-const ALERT_COOLDOWN_MS = 20 * 1000;
+const ALERT_COOLDOWN_MS = 15 * 1000;
 /**
  * Alerts are about a moment. If one can't get on screen within this long of
  * the event that caused it, it's discarded rather than queued — otherwise

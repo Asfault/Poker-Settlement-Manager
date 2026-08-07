@@ -48,6 +48,39 @@ export interface LifetimeRow {
   /** Newest first: +1 win, -1 loss, 0 even. */
   form: number[];
   currentStreak: { kind: "win" | "loss" | "none"; length: number };
+  /** The typical night. Diverges from the mean when one result dominates. */
+  medianNight: number;
+  /** Longest runs ever, not just the current one. */
+  longestWinStreak: number;
+  longestLossStreak: number;
+  /** Nights played since their last winning one. Null if they never have. */
+  nightsSinceLastWin: number | null;
+  /** Nights played as a share of nights held since their debut, 0–1. */
+  attendanceRate: number;
+  /** Nights they finished top of the table, and their average position. */
+  timesFirst: number;
+  avgFinishPosition: number;
+  /**
+   * Average share of the night's money they put in, against the share they
+   * left with. The pot is zero-sum, so the two are directly comparable.
+   */
+  potShareIn: number;
+  potShareOut: number;
+  /** Population standard deviation of nightly results — how swingy they are. */
+  volatility: number;
+  /**
+   * Nights survived on a single buy-in, out of nights the app actually timed.
+   * Backfill collapses buy-ins into one row, so it's excluded — otherwise
+   * every historical night would look like discipline.
+   */
+  rockNights: { nights: number; outOf: number };
+  /** Nights they were first to reload, out of nights anyone reloaded. */
+  firstToReload: { nights: number; outOf: number };
+  /** Their most and least profitable table size, once there's enough to say. */
+  bestTableSize: { size: number; avg: number; sessions: number } | null;
+  worstTableSize: { size: number; avg: number; sessions: number } | null;
+  /** Profit per hour across sessions with a duration. */
+  profitPerHour: number | null;
   /** False once archived — keeps them out of the filler pool. */
   isActive: boolean;
 }
@@ -62,6 +95,15 @@ export interface GroupFacts {
   busiestWeekday: number | null;
   firstSession: number | null;
   totalBuyInCount: number;
+  avgPlayersPerNight: number;
+  avgPotPerPlayer: number;
+  /** Share of timed player-nights that involved a reload, 0–1. */
+  rebuyRate: number;
+  totalHoursPlayed: number;
+  /** The most people ever round the table, and when. */
+  biggestTable: { size: number; at: number } | null;
+  /** Money across the table per hour played. */
+  moneyPerHour: number | null;
 }
 
 export interface Derived {
@@ -160,8 +202,25 @@ function deriveLive(payload: DisplayPayload, now: number): Derived["live"] {
   };
 }
 
+/** Extra accumulators kept alongside each LifetimeRow while building it. */
+interface Acc {
+  pls: number[];
+  positions: number[];
+  shareIn: number[];
+  shareOut: number[];
+  tableSizes: Map<number, { sessions: number; total: number }>;
+  firstIndex: number;
+  rockNights: number;
+  timedNights: number;
+  firstToReload: number;
+  reloadNights: number;
+  timedProfit: number;
+  timedMs: number;
+}
+
 function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
   const map = new Map<string, LifetimeRow>();
+  const acc = new Map<string, Acc>();
 
   // Oldest first so form builds chronologically, reversed at the end.
   const chronological = [...history].sort(
@@ -169,7 +228,39 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
       new Date(a.started_at).getTime() - new Date(b.started_at).getTime(),
   );
 
-  for (const session of chronological) {
+  chronological.forEach((session, sessionIndex) => {
+    const pot = session.players.reduce((s, p) => s + p.total_buy_in, 0);
+    const started = new Date(session.started_at).getTime();
+    const ended = session.ended_at ? new Date(session.ended_at).getTime() : 0;
+    const durationMs = ended > started ? ended - started : 0;
+    const isBackfill = session.is_backfill === true;
+
+    const ranked = [...session.players].sort(
+      (a, b) => b.chips_left - b.total_buy_in - (a.chips_left - a.total_buy_in),
+    );
+
+    // Who reloaded first tonight. Backfill stamps every buy-in at the start,
+    // so it can't answer this and is skipped.
+    let earliest = Infinity;
+    const firstReloaders = new Set<string>();
+    if (!isBackfill) {
+      for (const p of session.players) {
+        const times = (p.buy_in_times ?? [])
+          .map((t) => new Date(t).getTime())
+          .sort((a, b) => a - b);
+        const rebuy = times[1];
+        if (rebuy === undefined) continue;
+        if (rebuy < earliest) {
+          earliest = rebuy;
+          firstReloaders.clear();
+          firstReloaders.add(p.player_id);
+        } else if (rebuy === earliest) {
+          firstReloaders.add(p.player_id);
+        }
+      }
+    }
+    const anyoneReloaded = firstReloaders.size > 0;
+
     for (const p of session.players) {
       const pl = p.total_buy_in === 0 && p.chips_left === 0
         ? 0
@@ -195,8 +286,70 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
           form: [],
           currentStreak: { kind: "none", length: 0 },
           isActive: true,
+          medianNight: 0,
+          longestWinStreak: 0,
+          longestLossStreak: 0,
+          nightsSinceLastWin: null,
+          attendanceRate: 0,
+          timesFirst: 0,
+          avgFinishPosition: 0,
+          potShareIn: 0,
+          potShareOut: 0,
+          volatility: 0,
+          rockNights: { nights: 0, outOf: 0 },
+          firstToReload: { nights: 0, outOf: 0 },
+          bestTableSize: null,
+          worstTableSize: null,
+          profitPerHour: null,
         };
         map.set(p.player_id, e);
+      }
+
+      let a = acc.get(p.player_id);
+      if (!a) {
+        a = {
+          pls: [],
+          positions: [],
+          shareIn: [],
+          shareOut: [],
+          tableSizes: new Map(),
+          firstIndex: sessionIndex,
+          rockNights: 0,
+          timedNights: 0,
+          firstToReload: 0,
+          reloadNights: 0,
+          timedProfit: 0,
+          timedMs: 0,
+        };
+        acc.set(p.player_id, a);
+      }
+
+      a.pls.push(pl);
+      // Ties share the better position — two players level are both 1st.
+      a.positions.push(
+        ranked.findIndex((r) => r.chips_left - r.total_buy_in === pl) + 1,
+      );
+      if (pot > 0) {
+        a.shareIn.push(p.total_buy_in / pot);
+        a.shareOut.push(p.chips_left / pot);
+      }
+      const size = session.players.length;
+      const bucket = a.tableSizes.get(size) ?? { sessions: 0, total: 0 };
+      bucket.sessions += 1;
+      bucket.total += pl;
+      a.tableSizes.set(size, bucket);
+
+      if (!isBackfill) {
+        a.timedNights += 1;
+        if (p.buy_in_count === 1) a.rockNights += 1;
+        if (anyoneReloaded) {
+          a.reloadNights += 1;
+          if (firstReloaders.has(p.player_id)) a.firstToReload += 1;
+        }
+      }
+      if (durationMs > 0) {
+        a.timedProfit += pl;
+        a.timedMs += durationMs;
       }
 
       e.name = p.name;
@@ -219,20 +372,108 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
       if (pl > e.biggestWin) e.biggestWin = pl;
       if (pl < e.biggestLoss) e.biggestLoss = pl;
     }
-  }
+  });
+
+  const totalSessions = chronological.length;
 
   return [...map.values()]
     .map((e) => {
       const form = [...e.form].reverse();
+      const a = acc.get(e.playerId);
+      const chronForm = e.form;
+
+      const sizes = a
+        ? [...a.tableSizes.entries()]
+            // One night at a table size says nothing.
+            .filter(([, v]) => v.sessions >= 2)
+            .map(([size, v]) => ({
+              size,
+              sessions: v.sessions,
+              avg: v.total / v.sessions,
+            }))
+            .sort((x, y) => y.avg - x.avg)
+        : [];
+
       return {
         ...e,
         winRate: e.sessions > 0 ? e.wins / e.sessions : 0,
         avgProfitLoss: e.sessions > 0 ? e.totalProfitLoss / e.sessions : 0,
         form: form.slice(0, 12),
         currentStreak: streakOf(form),
+        medianNight: median(a?.pls ?? []),
+        longestWinStreak: longestRun(chronForm, 1),
+        longestLossStreak: longestRun(chronForm, -1),
+        nightsSinceLastWin: nightsSinceLastWin(chronForm),
+        attendanceRate:
+          a && totalSessions - a.firstIndex > 0
+            ? e.sessions / (totalSessions - a.firstIndex)
+            : 0,
+        timesFirst: a ? a.positions.filter((x) => x === 1).length : 0,
+        avgFinishPosition: mean(a?.positions ?? []),
+        potShareIn: mean(a?.shareIn ?? []),
+        potShareOut: mean(a?.shareOut ?? []),
+        volatility: stdDev(a?.pls ?? []),
+        rockNights: {
+          nights: a?.rockNights ?? 0,
+          outOf: a?.timedNights ?? 0,
+        },
+        firstToReload: {
+          nights: a?.firstToReload ?? 0,
+          outOf: a?.reloadNights ?? 0,
+        },
+        // Only interesting when there's a contrast to draw.
+        bestTableSize: sizes.length >= 2 ? sizes[0] : null,
+        worstTableSize: sizes.length >= 2 ? sizes[sizes.length - 1] : null,
+        profitPerHour:
+          a && a.timedMs > 0 ? a.timedProfit / (a.timedMs / 3600000) : null,
       };
     })
     .sort((a, b) => b.totalProfitLoss - a.totalProfitLoss);
+}
+
+// ---------- small maths ----------
+
+function mean(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+function median(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
+}
+
+function stdDev(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const m = mean(xs);
+  return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
+}
+
+/** Longest consecutive run of `value`. Form is oldest-first here. */
+function longestRun(form: number[], value: number): number {
+  let best = 0;
+  let run = 0;
+  for (const f of form) {
+    if (f === value) {
+      run += 1;
+      if (run > best) best = run;
+    } else {
+      run = 0;
+    }
+  }
+  return best;
+}
+
+/** Nights played since the last win. 0 if they won last time, null if never. */
+function nightsSinceLastWin(formOldestFirst: number[]): number | null {
+  let count = 0;
+  for (let i = formOldestFirst.length - 1; i >= 0; i -= 1) {
+    if (formOldestFirst[i] > 0) return count;
+    count += 1;
+  }
+  return null;
 }
 
 /** Run of consecutive wins or losses at the top of the (newest-first) form. */
@@ -255,6 +496,10 @@ function deriveGroup(history: DisplayHistorySession[]): GroupFacts {
   let durationSum = 0;
   let durationCount = 0;
   let buyInCount = 0;
+  let playerNights = 0;
+  let rebuyNights = 0;
+  let timedPlayerNights = 0;
+  let biggestTable: GroupFacts["biggestTable"] = null;
   const starts: number[] = [];
 
   for (const s of history) {
@@ -262,6 +507,23 @@ function deriveGroup(history: DisplayHistorySession[]): GroupFacts {
     totalMoney += pot;
     if (pot > biggestPot) biggestPot = pot;
     buyInCount += s.players.reduce((sum, p) => sum + p.buy_in_count, 0);
+    playerNights += s.players.length;
+
+    if (biggestTable === null || s.players.length > biggestTable.size) {
+      biggestTable = {
+        size: s.players.length,
+        at: new Date(s.started_at).getTime(),
+      };
+    }
+
+    // Backfill collapses buy-ins into one row, so a rebuy rate that counted
+    // it would read as zero for the entire history.
+    if (s.is_backfill !== true) {
+      for (const p of s.players) {
+        timedPlayerNights += 1;
+        if (p.buy_in_count > 1) rebuyNights += 1;
+      }
+    }
 
     const started = new Date(s.started_at).getTime();
     starts.push(started);
@@ -287,5 +549,12 @@ function deriveGroup(history: DisplayHistorySession[]): GroupFacts {
     busiestWeekday: max > 0 ? byWeekday.indexOf(max) : null,
     firstSession: starts.length ? Math.min(...starts) : null,
     totalBuyInCount: buyInCount,
+    avgPlayersPerNight: history.length ? playerNights / history.length : 0,
+    avgPotPerPlayer: playerNights ? totalMoney / playerNights : 0,
+    rebuyRate: timedPlayerNights ? rebuyNights / timedPlayerNights : 0,
+    totalHoursPlayed: durationSum / 3600000,
+    biggestTable,
+    moneyPerHour:
+      durationSum > 0 ? totalMoney / (durationSum / 3600000) : null,
   };
 }

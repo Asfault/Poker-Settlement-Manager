@@ -74,6 +74,10 @@ function hours(ms: number): string {
   return h >= 1 ? `${h.toFixed(1)}h` : `${Math.round(ms / 60000)}m`;
 }
 
+function signed(n: number): string {
+  return `${n > 0 ? "+" : ""}${formatINR(n)}`;
+}
+
 // ============================================================
 //  Triggered — fire on live events
 // ============================================================
@@ -549,6 +553,262 @@ export function fillerCards(d: Derived, now = Date.now()): Card[] {
         photoUrl: p.photoUrl,
       });
     }
+
+    // ---------- The newer, nosier ones ----------
+
+    // Median against mean. Only worth saying when they disagree.
+    if (p.sessions >= 5) {
+      const med = Math.round(p.medianNight);
+      const avg = Math.round(p.avgProfitLoss);
+      if (Math.abs(med - avg) >= 500) {
+        out.push({
+          id: `median-${p.playerId}`,
+          kind: "fact",
+          title: "One good night is doing a lot of work",
+          body:
+            avg > med
+              ? `${p.displayName} averages ${signed(avg)} a night, but a typical night is ${signed(med)}. One result is carrying the whole record.`
+              : `${p.displayName} averages ${signed(avg)}, yet the typical night is ${signed(med)}. One disaster is dragging everything down.`,
+          tone: avg > med ? "win" : "loss",
+          photoUrl: p.photoUrl,
+        });
+      }
+    }
+
+    // Share of the pot: in versus out.
+    if (p.sessions >= 4 && p.potShareOut > 0) {
+      const inPct = Math.round(p.potShareIn * 100);
+      const outPct = Math.round(p.potShareOut * 100);
+      if (inPct !== outPct) {
+        out.push({
+          id: `share-${p.playerId}`,
+          kind: "fact",
+          title: "Share of the money",
+          body:
+            outPct > inPct
+              ? `${p.displayName} brings ${inPct}% of the money to the table and leaves with ${outPct}%. Everyone else is funding that.`
+              : `${p.displayName} brings ${inPct}% of the money and leaves with ${outPct}%. Thank you for your service.`,
+          tone: outPct > inPct ? "win" : "loss",
+          photoUrl: p.photoUrl,
+        });
+      }
+    }
+
+    // Rock nights.
+    if (p.rockNights.outOf >= 4) {
+      const { nights, outOf } = p.rockNights;
+      const pct = Math.round((nights / outOf) * 100);
+      out.push({
+        id: `rock-nights-${p.playerId}`,
+        kind: "fact",
+        title: pct >= 60 ? "Immovable" : "Rarely satisfied",
+        body:
+          pct >= 60
+            ? `${p.displayName} has survived on one buy-in ${nights} of ${outOf} nights. Either disciplined or asleep.`
+            : `${p.displayName} has made it through a night on one buy-in just ${nights} times out of ${outOf}. The chips call.`,
+        tone: pct >= 60 ? "win" : "loss",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // First to reload.
+    if (p.firstToReload.outOf >= 3 && p.firstToReload.nights > 0) {
+      const { nights, outOf } = p.firstToReload;
+      out.push({
+        id: `first-reload-${p.playerId}`,
+        kind: "fact",
+        title: "First one back in",
+        body: `${p.displayName} has been the first to reload on ${nights} of ${outOf} nights. Someone has to break the seal.`,
+        tone: "loss",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // A drought.
+    if (p.nightsSinceLastWin !== null && p.nightsSinceLastWin >= 4) {
+      out.push({
+        id: `drought-${p.playerId}`,
+        kind: "stat",
+        title: `Nights since ${p.displayName} won`,
+        value: String(p.nightsSinceLastWin),
+        subtitle: "But this is the one. Definitely.",
+        tone: "loss",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Never won at all, once it stops being bad luck.
+    if (p.nightsSinceLastWin === null && p.sessions >= 4) {
+      out.push({
+        id: `never-won-${p.playerId}`,
+        kind: "fact",
+        title: "Still waiting",
+        body: `${p.displayName} has played ${p.sessions} nights and won none of them. The table thanks you.`,
+        tone: "loss",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Best run ever, when it's worth mentioning.
+    if (p.longestWinStreak >= 3) {
+      out.push({
+        id: `best-run-${p.playerId}`,
+        kind: "stat",
+        title: `${p.displayName}'s best run`,
+        value: `${p.longestWinStreak} wins`,
+        subtitle: "in a row, and never since",
+        tone: "win",
+        photoUrl: p.photoUrl,
+      });
+    }
+    if (p.longestLossStreak >= 4) {
+      out.push({
+        id: `worst-run-${p.playerId}`,
+        kind: "stat",
+        title: `${p.displayName}'s worst run`,
+        value: `${p.longestLossStreak} losses`,
+        subtitle: "consecutively, on purpose apparently",
+        tone: "loss",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Attendance.
+    if (p.sessions >= 5 && p.attendanceRate < 0.6) {
+      out.push({
+        id: `attendance-${p.playerId}`,
+        kind: "fact",
+        title: "Hard to book",
+        body: `${p.displayName} has turned up to ${Math.round(p.attendanceRate * 100)}% of the nights since they started playing. We do notice.`,
+        tone: "neutral",
+        photoUrl: p.photoUrl,
+      });
+    }
+    if (p.sessions >= 6 && p.attendanceRate >= 0.95) {
+      out.push({
+        id: `ever-present-${p.playerId}`,
+        kind: "fact",
+        title: "Ever present",
+        body: `${p.displayName} has been at ${Math.round(p.attendanceRate * 100)}% of nights since their first. No hobbies.`,
+        tone: "win",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Table size preference.
+    if (
+      p.bestTableSize &&
+      p.worstTableSize &&
+      p.bestTableSize.size !== p.worstTableSize.size &&
+      p.sessions >= 6
+    ) {
+      out.push({
+        id: `table-size-${p.playerId}`,
+        kind: "fact",
+        title: "Picky about company",
+        body: `${p.displayName} averages ${signed(Math.round(p.bestTableSize.avg))} at ${p.bestTableSize.size}-handed tables and ${signed(Math.round(p.worstTableSize.avg))} at ${p.worstTableSize.size}. Choose your invitations accordingly.`,
+        tone: "neutral",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Times on top.
+    if (p.sessions >= 5 && p.timesFirst > 0) {
+      out.push({
+        id: `on-top-${p.playerId}`,
+        kind: "stat",
+        title: `${p.displayName} has topped the table`,
+        value: `${p.timesFirst}×`,
+        subtitle: `out of ${p.sessions} nights · average finish ${p.avgFinishPosition.toFixed(1)}`,
+        tone: "win",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Hourly rate.
+    if (p.profitPerHour !== null && p.sessions >= 4) {
+      const perHour = Math.round(p.profitPerHour);
+      out.push({
+        id: `per-hour-${p.playerId}`,
+        kind: "stat",
+        title: `${p.displayName} earns`,
+        value: `${signed(perHour)}/hr`,
+        subtitle:
+          perHour >= 0
+            ? "Don't hand in your notice"
+            : "You could pay someone less to lose this for you",
+        tone: perHour >= 0 ? "win" : "loss",
+        photoUrl: p.photoUrl,
+      });
+    }
+
+    // Volatility, framed as a personality rather than a number.
+    if (p.sessions >= 6 && p.volatility > 0) {
+      out.push({
+        id: `swing-${p.playerId}`,
+        kind: "fact",
+        title: "Emotional range",
+        body: `A typical ${p.displayName} night lands within ${formatINR(Math.round(p.volatility))} either side of their average. Pack accordingly.`,
+        tone: "neutral",
+        photoUrl: p.photoUrl,
+      });
+    }
+  }
+
+  // ---------- Comparisons ----------
+
+  if (lifetime.length >= 3) {
+    const steady = [...lifetime]
+      .filter((p) => p.sessions >= 5)
+      .sort((a, b) => a.volatility - b.volatility)[0];
+    if (steady) {
+      out.push({
+        id: "most-consistent",
+        kind: "fact",
+        title: "The most predictable person here",
+        body: `${steady.displayName} swings least from night to night. Whether that's control or cowardice is for them to say.`,
+        tone: "neutral",
+        photoUrl: steady.photoUrl,
+      });
+    }
+
+    // Two players almost level all time.
+    const ranked = [...lifetime].sort(
+      (a, b) => b.totalProfitLoss - a.totalProfitLoss,
+    );
+    let closest: { a: LifetimeRow; b: LifetimeRow; gap: number } | null = null;
+    for (let i = 0; i < ranked.length - 1; i += 1) {
+      const gap = Math.abs(
+        ranked[i].totalProfitLoss - ranked[i + 1].totalProfitLoss,
+      );
+      if (closest === null || gap < closest.gap) {
+        closest = { a: ranked[i], b: ranked[i + 1], gap };
+      }
+    }
+    if (closest && closest.gap > 0 && closest.gap <= 2000) {
+      out.push({
+        id: "closest-race",
+        kind: "headToHead",
+        title: "Too close to call",
+        subtitle: `${formatINR(closest.gap)} between them, all time`,
+        data: [
+          {
+            label: closest.a.displayName,
+            value: closest.a.totalProfitLoss,
+            display: `${closest.a.totalProfitLoss > 0 ? "+" : ""}${formatINR(closest.a.totalProfitLoss)}`,
+            photoUrl: closest.a.photoUrl,
+            tone: "win",
+          },
+          {
+            label: closest.b.displayName,
+            value: closest.b.totalProfitLoss,
+            display: `${closest.b.totalProfitLoss > 0 ? "+" : ""}${formatINR(closest.b.totalProfitLoss)}`,
+            photoUrl: closest.b.photoUrl,
+            tone: "neutral",
+          },
+        ],
+      });
+    }
   }
 
   // ---------- Head to head ----------
@@ -649,6 +909,68 @@ export function fillerCards(d: Derived, now = Date.now()): Card[] {
       title: "Buy-ins all time",
       value: String(group.totalBuyInCount),
       subtitle: `${(group.totalBuyInCount / Math.max(1, group.sessions)).toFixed(1)} per session`,
+      tone: "gold",
+    });
+  }
+
+  if (group.sessions >= 4) {
+    out.push({
+      id: "avg-players",
+      kind: "stat",
+      title: "Average turnout",
+      value: group.avgPlayersPerNight.toFixed(1),
+      subtitle: "players a night",
+      tone: "neutral",
+    });
+
+    out.push({
+      id: "avg-per-player",
+      kind: "stat",
+      title: "Brought to the table",
+      value: formatINR(Math.round(group.avgPotPerPlayer)),
+      subtitle: "per person, per night, on average",
+      tone: "gold",
+    });
+  }
+
+  if (group.rebuyRate > 0) {
+    out.push({
+      id: "rebuy-rate",
+      kind: "fact",
+      title: "Discipline, measured",
+      body: `${Math.round(group.rebuyRate * 100)}% of player-nights end in at least one reload. The other ${Math.round((1 - group.rebuyRate) * 100)}% went home early.`,
+      tone: "neutral",
+    });
+  }
+
+  if (group.totalHoursPlayed >= 10) {
+    out.push({
+      id: "hours-played",
+      kind: "stat",
+      title: "Hours at this table",
+      value: `${Math.round(group.totalHoursPlayed)}h`,
+      subtitle: `across ${group.sessions} nights, and counting`,
+      tone: "gold",
+    });
+  }
+
+  if (group.biggestTable && group.biggestTable.size >= 5) {
+    out.push({
+      id: "biggest-table",
+      kind: "stat",
+      title: "Most people ever squeezed in",
+      value: String(group.biggestTable.size),
+      subtitle: "elbows were involved",
+      tone: "neutral",
+    });
+  }
+
+  if (group.moneyPerHour !== null && group.sessions >= 3) {
+    out.push({
+      id: "money-per-hour",
+      kind: "fact",
+      title: "The rate of exchange",
+      body: `${formatINR(Math.round(group.moneyPerHour))} changes hands every hour at this table. Nobody is getting richer.`,
       tone: "gold",
     });
   }

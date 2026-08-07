@@ -50,6 +50,12 @@ export interface DisplayHistorySession {
   id: string;
   started_at: string;
   ended_at: string | null;
+  /**
+   * Games entered as history rather than played through the app. They stamp
+   * every buy-in at started_at and collapse them into one row, so anything
+   * about reload timing or discipline has to exclude them.
+   */
+  is_backfill?: boolean;
   players: DisplayHistoryPlayer[];
 }
 
