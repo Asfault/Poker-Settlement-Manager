@@ -2,7 +2,7 @@
 
 import { forwardRef } from "react";
 import type { PlayerResult, Settlement } from "@/lib/types";
-import { formatINR, shortINR } from "@/lib/format";
+import { buyInChain, formatINR } from "@/lib/format";
 
 interface SummaryCardProps {
   startedAt: number;
@@ -596,7 +596,7 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {chain.map((a) => shortINR(a)).join(" + ")}
+                          {buyInChain(chain)}
                         </div>
                       );
                     })()}

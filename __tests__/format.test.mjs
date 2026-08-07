@@ -10,6 +10,15 @@ function shortINR(amount) {
   return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
 }
 
+function buyInChain(amounts) {
+  return amounts
+    .map((a) => {
+      const k = Math.round(a) / 1000;
+      return String(Number(k.toFixed(1)));
+    })
+    .join("+");
+}
+
 let pass = 0;
 let fail = 0;
 function check(label, actual, expected) {
@@ -35,11 +44,22 @@ check("nine hundred and ninety nine", shortINR(999), "999");
 check("zero", shortINR(0), "0");
 check("fractions of a rupee are rounded away", shortINR(2500.4), "2.5k");
 
-console.log("\nA realistic chain fits");
+console.log("\nBuy-in chains for the summary image");
 {
-  const chain = [5000, 2500, 5000, 2500].map(shortINR).join(" + ");
-  check("four buy-ins", chain, "5k + 2.5k + 5k + 2.5k");
-  check("and stays short", chain.length <= 24, true);
+  check("whole thousands lose the decimal", buyInChain([5000]), "5");
+  check("halves keep one", buyInChain([2500]), "2.5");
+  check(
+    "a mixed chain",
+    buyInChain([2000, 5000, 3000, 2500]),
+    "2+5+3+2.5",
+  );
+  check("sub-thousand becomes a fraction", buyInChain([500]), "0.5");
+  check("ten thousand", buyInChain([10000]), "10");
+  check("no buy-ins, empty string", buyInChain([]), "");
+  // The reason for dropping "k": eight reloads still has to fit the cell.
+  const heavy = buyInChain([5000, 5000, 5000, 5000, 2500, 2500, 5000, 5000]);
+  check("eight buy-ins", heavy, "5+5+5+5+2.5+2.5+5+5");
+  check("and stays under 20 characters", heavy.length < 20, true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed.\n`);

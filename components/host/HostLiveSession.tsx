@@ -33,7 +33,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import ExpenseSheet from "./ExpenseSheet";
 import PlayerAvatar from "./PlayerAvatar";
 
-const QUICK_AMOUNTS = [1000, 2000, 4000, 5000];
+const QUICK_AMOUNTS = [1000, 2500, 4000, 5000];
 
 export default function HostLiveSession({
   data,

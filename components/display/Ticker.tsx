@@ -64,18 +64,11 @@ export default function Ticker({ derived }: { derived: Derived | null }) {
 function buildItems(derived: Derived | null): string[] {
   if (!derived) return [];
   const out: string[] = [];
-  const { live, lifetime, group } = derived;
+  const { lifetime, group } = derived;
 
-  // Tonight first — it's the reason anyone glances down.
-  if (live) {
-    for (const r of [...live.rows].sort((a, b) => b.totalBuyIn - a.totalBuyIn)) {
-      out.push(
-        `${r.displayName} ${r.buyInCount} buy-in${r.buyInCount === 1 ? "" : "s"} · ${formatINR(r.totalBuyIn)}`,
-      );
-    }
-    out.push(`${formatINR(live.pot)} on the table`);
-  }
-
+  // Deliberately no buy-in totals here — every seat already shows its own,
+  // and the pot is the biggest number on the screen. The ticker is for
+  // context you can't get by looking at the table.
   const active = lifetime.filter((p) => p.isActive);
 
   const leader = active[0];

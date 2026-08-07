@@ -2,7 +2,7 @@
 
 import type { LiveRow } from "@/lib/display/derive";
 import { useCountUp } from "@/lib/display/useCountUp";
-import { formatINR } from "@/lib/format";
+import { buyInChain, formatINR } from "@/lib/format";
 import DisplayAvatar from "./DisplayAvatar";
 import TiltAura from "./TiltAura";
 import TiltStamp from "./TiltStamp";
@@ -102,7 +102,21 @@ export default function PokerTable({
     .filter((r) => r.buyInCount >= 3)
     .sort((a, b) => b.totalBuyIn - a.totalBuyIn)[0];
 
-  const mins = Math.max(0, Math.floor((now - startedAt) / 60000));
+  /**
+   * The clock runs from the FIRST BUY-IN, not from when the session row was
+   * created. There's usually a stretch of arriving, sitting down and arguing
+   * about stakes before anyone plays, and counting that made every night look
+   * longer than it was.
+   */
+  const firstBuyInAt = rows.reduce<number | null>((earliest, r) => {
+    const first = r.buyIns[0]?.at;
+    if (first === undefined) return earliest;
+    return earliest === null || first < earliest ? first : earliest;
+  }, null);
+
+  const from = firstBuyInAt ?? startedAt;
+  const mins =
+    firstBuyInAt === null ? 0 : Math.max(0, Math.floor((now - from) / 60000));
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   const elapsed = h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -242,6 +256,23 @@ export default function PokerTable({
                 scale={depthScale}
                 highlight={row.isHost}
               />
+
+              {/* Buy-in history, in the same shorthand as the summary image.
+                  Sits under the plate rather than inside it — the artwork is
+                  a fixed PNG with text registered to its two panels, so a
+                  third line in there would fall out of alignment. Hidden on
+                  a single buy-in, where it'd just repeat the total. */}
+              {row.buyIns.length >= 2 && (
+                <div
+                  className="text-center tabular-nums leading-none text-white/45"
+                  style={{
+                    fontSize: `${0.85 * depthScale}vw`,
+                    marginTop: `${-0.6 * depthScale}vw`,
+                  }}
+                >
+                  {buyInChain(row.buyIns.map((b) => b.amount))}
+                </div>
+              )}
             </div>
           </div>
         );

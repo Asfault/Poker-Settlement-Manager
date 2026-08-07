@@ -24,6 +24,24 @@ export function shortINR(amount: number): string {
   return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
 }
 
+/**
+ * A chain of buy-ins for the summary image: "2+5+3+2.5".
+ *
+ * Everything is expressed in thousands with no unit and no spaces, because
+ * the cell is sized for a single number and the total sits directly above it
+ * with the ₹. Dropping "k" from every element buys roughly a third more
+ * amounts before it truncates, which matters on a heavy-reload night.
+ */
+export function buyInChain(amounts: number[]): string {
+  return amounts
+    .map((a) => {
+      const k = Math.round(a) / 1000;
+      // Trim trailing zeros: 5 not 5.0, 2.5 not 2.50.
+      return String(Number(k.toFixed(1)));
+    })
+    .join("+");
+}
+
 /** Time of day for the board, e.g. "9:12 pm". */
 export function formatClock(epochMs: number): string {
   return new Date(epochMs).toLocaleTimeString("en-IN", {

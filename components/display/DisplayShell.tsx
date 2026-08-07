@@ -398,8 +398,12 @@ export default function DisplayShell({
       {/* Board is always mounted; overlays sit on top of it. The bottom
           inset keeps the table clear of the ticker, so seats at the front
           of the ellipse aren't sitting behind it. */}
+      {/* `relative` is load-bearing: PokerTable is `absolute inset-0`, so
+          without a positioned ancestor here it sizes against the shell root
+          and ignores this height entirely — which is exactly how the table
+          ended up underneath the ticker. */}
       <div
-        className="transition-opacity duration-500"
+        className="relative transition-opacity duration-500"
         style={{
           height: `calc(100% - ${TICKER_HEIGHT_VH}vh)`,
           opacity: overlay ? 0.08 : 1,
