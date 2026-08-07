@@ -1,5 +1,5 @@
 import type { Derived, LifetimeRow } from "./derive";
-import { formatINR } from "@/lib/format";
+import { formatClock, formatINR } from "@/lib/format";
 
 /**
  * The content catalogue.
@@ -499,6 +499,24 @@ export function fillerCards(d: Derived, now = Date.now()): Card[] {
       subtitle: `across ${live.playerCount} players`,
       tone: "gold",
     });
+
+    // Buy-in history with times — who reloaded, and exactly when. This is
+    // the only place the board shows the shape of someone's night rather
+    // than a single total.
+    for (const r of live.rows) {
+      if (r.buyIns.length < 2) continue;
+      out.push({
+        id: `timeline-${r.playerId}`,
+        kind: "fact",
+        title: `${r.displayName}'s night so far`,
+        body: r.buyIns
+          .map((b) => `${formatClock(b.at)} — ${formatINR(b.amount)}`)
+          .join("   ·   "),
+        subtitle: `${formatINR(r.totalBuyIn)} across ${r.buyIns.length} buy-ins`,
+        tone: r.buyIns.length >= 3 ? "loss" : "neutral",
+        photoUrl: r.photoUrl,
+      });
+    }
 
     const elapsed = Date.now() - live.startedAt;
     if (elapsed > 20 * 60 * 1000) {

@@ -2,7 +2,7 @@
 
 import { forwardRef } from "react";
 import type { PlayerResult, Settlement } from "@/lib/types";
-import { formatINR } from "@/lib/format";
+import { formatINR, shortINR } from "@/lib/format";
 
 interface SummaryCardProps {
   startedAt: number;
@@ -15,6 +15,13 @@ interface SummaryCardProps {
    * than growing a paragraph. Omitted when nothing but poker is in play.
    */
   inclusionNote?: string | null;
+  /**
+   * Individual buy-in amounts per player id, oldest first. Rendered as a
+   * compact chain beneath the total, inside the vertical space the buy-ins
+   * cell already had — so the layout is unchanged. Omitted entirely for
+   * anyone with a single buy-in, where it'd just repeat the total.
+   */
+  buyInsByPlayer?: Record<string, number[]>;
   /** Unused — kept for API compatibility. */
   biggestWinner?: PlayerResult | null;
 }
@@ -236,7 +243,10 @@ function MiniAvatar({ name, size }: { name: string; size: number }) {
 }
 
 const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
-  function SummaryCard({ results, settlements, totalPot, inclusionNote }, ref) {
+  function SummaryCard(
+    { results, settlements, totalPot, inclusionNote, buyInsByPlayer },
+    ref,
+  ) {
     const playerCount = Math.max(results.length, 1);
     const settlementCount = Math.max(settlements.length, 1);
     const topWinner =
@@ -565,9 +575,31 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
                       textAlign: "center",
                       fontVariantNumeric: "tabular-nums",
                       color: WHITE,
+                      minWidth: 0,
                     }}
                   >
                     {formatINR(r.totalBuyIn)}
+                    {(() => {
+                      const chain = buyInsByPlayer?.[r.id];
+                      if (!chain || chain.length < 2) return null;
+                      return (
+                        <div
+                          style={{
+                            fontSize: Math.round(rowFont * 0.46),
+                            fontWeight: 800,
+                            color: MUTED,
+                            letterSpacing: "-0.01em",
+                            marginTop: 2,
+                            lineHeight: 1,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {chain.map((a) => shortINR(a)).join(" + ")}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div
                     style={{

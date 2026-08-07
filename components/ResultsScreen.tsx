@@ -282,6 +282,12 @@ export default function ResultsScreen({
                 settlements={settlements}
                 totalPot={totalPot}
                 biggestWinner={winner}
+                buyInsByPlayer={Object.fromEntries(
+                  session.players.map((p) => [
+                    p.id,
+                    p.buyIns.map((b) => b.amount),
+                  ]),
+                )}
               />
             </div>
           </div>

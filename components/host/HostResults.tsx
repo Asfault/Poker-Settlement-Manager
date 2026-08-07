@@ -134,6 +134,21 @@ export default function HostResults({
     profitLoss: r.profitLoss,
   }));
 
+  /** Individual buy-ins per player, oldest first, for the image's chain. */
+  const buyInsByPlayer = useMemo(() => {
+    const out: Record<string, number[]> = {};
+    for (const p of players) {
+      out[p.player_id] = [...p.buy_ins]
+        .sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() -
+            new Date(b.created_at).getTime(),
+        )
+        .map((b) => b.amount);
+    }
+    return out;
+  }, [players]);
+
   async function exportPng() {
     if (!summaryRef.current) return;
     setExporting(true);
@@ -457,6 +472,7 @@ export default function HostResults({
                 settlements={settlements}
                 totalPot={pot}
                 inclusionNote={inclusionNote}
+                buyInsByPlayer={buyInsByPlayer}
               />
             </div>
           </div>

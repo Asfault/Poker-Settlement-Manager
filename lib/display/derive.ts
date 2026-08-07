@@ -17,6 +17,8 @@ export interface LiveRow {
   characterUrl: string | null;
   totalBuyIn: number;
   buyInCount: number;
+  /** Every buy-in tonight, oldest first. Drives the timeline card. */
+  buyIns: { amount: number; at: number }[];
   lastBuyInAt: number | null;
   /** Buy-ins in the last 15 minutes. */
   recentBuyIns: number;
@@ -185,6 +187,9 @@ function deriveLive(payload: DisplayPayload, now: number): Derived["live"] {
       characterUrl: p.character_url ?? null,
       totalBuyIn: p.total_buy_in,
       buyInCount: p.buy_ins.length,
+      buyIns: [...p.buy_ins]
+        .map((b) => ({ amount: b.amount, at: new Date(b.at).getTime() }))
+        .sort((a, b) => a.at - b.at),
       lastBuyInAt: times.length ? Math.max(...times) : null,
       recentBuyIns: recent,
       tilted: tilt.tilted,
