@@ -123,6 +123,54 @@ function buildRecap(history, now, windowMs) {
   };
 }
 
+function recordsFrom(sessions) {
+  const out = new Map();
+  for (const s of sessions) {
+    for (const p of s.players) {
+      const e = out.get(p.player_id) ?? { sessions: 0, wins: 0, total: 0 };
+      e.sessions += 1;
+      if (plOf(p) > 0) e.wins += 1;
+      e.total += plOf(p);
+      out.set(p.player_id, e);
+    }
+  }
+  return out;
+}
+
+/** buildRecap plus the per-player record fields on each standing. */
+function buildRecapWithRecords(history, now, windowMs) {
+  const base = buildRecap(history, now, windowMs);
+  if (!base) return base;
+  const sorted = [...history].sort(
+    (a, b) =>
+      new Date(b.ended_at ?? b.started_at).getTime() -
+      new Date(a.ended_at ?? a.started_at).getTime(),
+  );
+  const latest = sorted[0];
+  const before = sorted.filter((s) => s.id !== latest.id);
+  const recAfter = recordsFrom(sorted);
+  const recBefore = recordsFrom(before);
+
+  base.standings = base.standings.map((s) => {
+    const a = recAfter.get(s.playerId) ?? { sessions: 0, wins: 0, total: 0 };
+    const b = recBefore.get(s.playerId) ?? { sessions: 0, wins: 0, total: 0 };
+    const rateAfter = a.sessions > 0 ? a.wins / a.sessions : 0;
+    const rateBefore = b.sessions > 0 ? b.wins / b.sessions : 0;
+    return {
+      ...s,
+      tonightDelta: a.total - b.total,
+      sessions: a.sessions,
+      wins: a.wins,
+      winRate: rateAfter,
+      winRateDelta:
+        b.sessions > 0 && a.sessions !== b.sessions
+          ? (rateAfter - rateBefore) * 100
+          : 0,
+    };
+  });
+  return base;
+}
+
 // ---------- harness ----------
 
 let pass = 0;
@@ -283,6 +331,46 @@ console.log("\nMilestones");
     1,
   );
   check("and so is the record loss", heads.includes("Worst night ever"), true);
+}
+
+console.log("\nWin rate and tonight's delta");
+{
+  // Ram: lost, lost, then won tonight — 0% becomes 33%.
+  const h = [
+    sess("s1", NOW - 30 * DAY, [pl("p1", "Ram", 1000, 0), pl("p2", "Sita", 1000, 2000)]),
+    sess("s2", NOW - 20 * DAY, [pl("p1", "Ram", 1000, 0), pl("p2", "Sita", 1000, 2000)]),
+    sess("s3", NOW - MIN, [pl("p1", "Ram", 1000, 3000), pl("p2", "Sita", 1000, 0)]),
+  ];
+  const r = buildRecapWithRecords(h, NOW, 30 * MIN);
+  const ram = r.standings.find((s) => s.playerId === "p1");
+  const sita = r.standings.find((s) => s.playerId === "p2");
+
+  check("sessions counted", ram.sessions, 3);
+  check("wins counted", ram.wins, 1);
+  check("win rate is wins over sessions", Math.round(ram.winRate * 100), 33);
+  check(
+    "win rate delta is in percentage points",
+    Math.round(ram.winRateDelta),
+    33,
+  );
+  check(
+    "a player who lost tonight moves the other way",
+    Math.round(sita.winRateDelta),
+    -33,
+  );
+  check("tonight's delta on the all-time total", ram.tonightDelta, 2000);
+  check("and the other direction", sita.tonightDelta, -1000);
+}
+{
+  // Somebody who didn't play tonight has no movement to report.
+  const h = [
+    sess("s1", NOW - 30 * DAY, [pl("p1", "Ram", 1000, 2000), pl("p9", "Absent", 1000, 0)]),
+    sess("s2", NOW - MIN, [pl("p1", "Ram", 1000, 2000)]),
+  ];
+  const r = buildRecapWithRecords(h, NOW, 30 * MIN);
+  const absent = r.standings.find((s) => s.playerId === "p9");
+  check("an absent player's win rate doesn't move", absent.winRateDelta, 0);
+  check("nor does their total", absent.tonightDelta, 0);
 }
 
 console.log("\nFormatting");

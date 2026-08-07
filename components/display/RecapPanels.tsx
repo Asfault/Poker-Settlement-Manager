@@ -96,11 +96,13 @@ function TonightPanel({ recap }: { recap: Recap }) {
             <span className="flex-1 min-w-0 truncate font-bold text-[clamp(24px,3vw,54px)]">
               {p.name}
             </span>
-            <span className="text-white/35 tabular-nums text-[clamp(14px,1.4vw,24px)] shrink-0 hidden sm:block">
-              in {formatINR(p.totalBuyIn)}
+            <span className="text-white/35 tabular-nums text-[clamp(14px,1.4vw,24px)] shrink-0 whitespace-nowrap">
+              in {formatINR(p.totalBuyIn)} · out {formatINR(p.chipsLeft)}
             </span>
+            {/* No fixed width: a long figure was overflowing its column and
+                running into the name. Natural width plus nowrap instead. */}
             <span
-              className="font-black tabular-nums text-[clamp(26px,3.2vw,58px)] shrink-0 w-[9vw] text-right"
+              className="font-black tabular-nums text-[clamp(24px,2.9vw,52px)] shrink-0 whitespace-nowrap text-right"
               style={{
                 color:
                   p.profitLoss > 0
@@ -140,19 +142,59 @@ function StandingsPanel({ recap }: { recap: Recap }) {
               {s.name}
             </span>
             <Movement movement={s.movement} />
-            <span
-              className="font-black tabular-nums text-[clamp(26px,3.2vw,58px)] shrink-0 w-[9vw] text-right"
-              style={{
-                color:
-                  s.total > 0
-                    ? "#22c55e"
-                    : s.total < 0
-                      ? "#ef4444"
-                      : "rgba(255,255,255,0.6)",
-              }}
-            >
-              {s.total > 0 ? "+" : ""}
-              {formatINR(s.total)}
+
+            {/* Win rate, with tonight's shift. */}
+            <span className="shrink-0 text-right whitespace-nowrap leading-tight">
+              <span className="block text-white/70 tabular-nums text-[clamp(16px,1.9vw,32px)]">
+                {Math.round(s.winRate * 100)}%
+              </span>
+              <span
+                className="block tabular-nums text-[clamp(11px,1.1vw,18px)]"
+                style={{
+                  color:
+                    s.winRateDelta > 0
+                      ? "#22c55e"
+                      : s.winRateDelta < 0
+                        ? "#ef4444"
+                        : "rgba(255,255,255,0.22)",
+                }}
+              >
+                {s.winRateDelta === 0
+                  ? "—"
+                  : `${s.winRateDelta > 0 ? "+" : ""}${s.winRateDelta.toFixed(1)}`}
+              </span>
+            </span>
+
+            <span className="shrink-0 text-right whitespace-nowrap leading-tight">
+              <span
+                className="block font-black tabular-nums text-[clamp(24px,2.9vw,52px)]"
+                style={{
+                  color:
+                    s.total > 0
+                      ? "#22c55e"
+                      : s.total < 0
+                        ? "#ef4444"
+                        : "rgba(255,255,255,0.6)",
+                }}
+              >
+                {s.total > 0 ? "+" : ""}
+                {formatINR(s.total)}
+              </span>
+              <span
+                className="block tabular-nums text-[clamp(11px,1.1vw,18px)]"
+                style={{
+                  color:
+                    s.tonightDelta > 0
+                      ? "#22c55e"
+                      : s.tonightDelta < 0
+                        ? "#ef4444"
+                        : "rgba(255,255,255,0.22)",
+                }}
+              >
+                {s.tonightDelta === 0
+                  ? "—"
+                  : `${s.tonightDelta > 0 ? "+" : ""}${formatINR(s.tonightDelta)} tonight`}
+              </span>
             </span>
           </div>
         ))}
@@ -184,33 +226,90 @@ function Movement({ movement }: { movement: number | null }) {
   );
 }
 
+/**
+ * Milestones on the left, everyone's updated record on the right.
+ *
+ * On its own the milestone list is often one line, which wastes a whole
+ * screen. Pairing it with the records means the panel always carries
+ * something to read, and the two answer each other — "biggest night ever"
+ * next to the W/L that produced it.
+ */
 function MilestonePanel({ recap }: { recap: Recap }) {
   const rows = recap.milestones.slice(0, 4);
+  const played = new Set(recap.tonight.map((p) => p.playerId));
+  const records = recap.standings
+    .filter((s) => played.has(s.playerId))
+    .sort((a, b) => b.winRate - a.winRate);
+
   return (
     <div className="h-full flex flex-col animate-[fadeIn_450ms_ease-out]">
       <PanelTitle>What changed</PanelTitle>
-      <div className="flex-1 min-h-0 flex flex-col justify-center gap-[3vh]">
-        {rows.map((m, i) => (
-          <div key={`${m.playerId}-${i}`} className="flex items-center gap-[2vw]">
-            <DisplayAvatar
-              name={m.name}
-              photoUrl={m.photoUrl}
-              size={110}
-              ring={m.tone === "win" ? "#22c55e" : "#ef4444"}
-            />
-            <div className="min-w-0">
-              <div
-                className="font-black leading-tight text-[clamp(26px,3.4vw,62px)]"
-                style={{ color: m.tone === "win" ? "#22c55e" : "#ef4444" }}
-              >
-                {m.name} — {m.headline}
-              </div>
-              <div className="text-white/55 text-[clamp(16px,1.8vw,30px)] mt-[0.6vh]">
-                {m.detail}
+      <div className="flex-1 min-h-0 grid grid-cols-[1.35fr_1fr] gap-[3vw]">
+        <div className="flex flex-col justify-center gap-[2.4vh] min-h-0">
+          {rows.map((m, i) => (
+            <div
+              key={`${m.playerId}-${i}`}
+              className="flex items-center gap-[1.6vw] min-w-0"
+            >
+              <DisplayAvatar
+                name={m.name}
+                photoUrl={m.photoUrl}
+                size={92}
+                ring={m.tone === "win" ? "#22c55e" : "#ef4444"}
+              />
+              <div className="min-w-0">
+                <div
+                  className="font-black leading-tight text-[clamp(22px,2.7vw,48px)]"
+                  style={{ color: m.tone === "win" ? "#22c55e" : "#ef4444" }}
+                >
+                  {m.name} — {m.headline}
+                </div>
+                <div className="text-white/55 text-[clamp(14px,1.5vw,26px)] mt-[0.5vh]">
+                  {m.detail}
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col justify-center min-h-0 border-l border-white/10 pl-[2.5vw]">
+          <div className="uppercase tracking-[0.24em] text-white/30 font-bold text-[clamp(11px,1.1vw,18px)] mb-[1.6vh]">
+            Records after tonight
           </div>
-        ))}
+          <div className="flex flex-col gap-[1.4vh]">
+            {records.map((s) => (
+              <div
+                key={s.playerId}
+                className="flex items-baseline gap-[1vw] whitespace-nowrap"
+              >
+                <span className="flex-1 min-w-0 truncate text-white/80 font-bold text-[clamp(16px,1.9vw,32px)]">
+                  {s.name}
+                </span>
+                <span className="text-white/40 tabular-nums text-[clamp(13px,1.3vw,22px)]">
+                  {s.wins}W · {s.sessions - s.wins}L
+                </span>
+                <span className="text-white tabular-nums font-bold text-[clamp(16px,1.8vw,30px)] w-[4.5vw] text-right">
+                  {Math.round(s.winRate * 100)}%
+                </span>
+                <span
+                  className="tabular-nums text-[clamp(12px,1.2vw,20px)] w-[4vw] text-right"
+                  style={{
+                    color:
+                      s.winRateDelta > 0
+                        ? "#22c55e"
+                        : s.winRateDelta < 0
+                          ? "#ef4444"
+                          : "rgba(255,255,255,0.22)",
+                  }}
+                >
+                  {s.winRateDelta === 0
+                    ? "—"
+                    : `${s.winRateDelta > 0 ? "+" : ""}${s.winRateDelta.toFixed(0)}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

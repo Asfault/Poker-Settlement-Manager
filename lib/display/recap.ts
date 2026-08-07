@@ -30,6 +30,34 @@ export interface RecapStanding {
   rank: number;
   /** Positive means they climbed tonight. Null if they're new to the board. */
   movement: number | null;
+  /** What tonight did to their all-time total. 0 if they didn't play. */
+  tonightDelta: number;
+  sessions: number;
+  wins: number;
+  /** 0–1. */
+  winRate: number;
+  /** Percentage points moved tonight. 0 if they didn't play. */
+  winRateDelta: number;
+}
+
+interface Record {
+  sessions: number;
+  wins: number;
+  total: number;
+}
+
+function recordsFrom(sessions: DisplayHistorySession[]): Map<string, Record> {
+  const out = new Map<string, Record>();
+  for (const s of sessions) {
+    for (const p of s.players) {
+      const e = out.get(p.player_id) ?? { sessions: 0, wins: 0, total: 0 };
+      e.sessions += 1;
+      if (plOf(p) > 0) e.wins += 1;
+      e.total += plOf(p);
+      out.set(p.player_id, e);
+    }
+  }
+  return out;
 }
 
 export interface RecapMilestone {
@@ -128,11 +156,18 @@ export function buildRecap(
     }
   }
 
+  const recAfter = recordsFrom(sorted);
+  const recBefore = recordsFrom(before);
+
   const standings: RecapStanding[] = [...totalsAfter.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([playerId, total]) => {
       const wasRanked = totalsBefore.has(playerId);
       const rank = ranksAfter.get(playerId) ?? 0;
+      const a = recAfter.get(playerId) ?? { sessions: 0, wins: 0, total: 0 };
+      const b = recBefore.get(playerId) ?? { sessions: 0, wins: 0, total: 0 };
+      const rateAfter = a.sessions > 0 ? a.wins / a.sessions : 0;
+      const rateBefore = b.sessions > 0 ? b.wins / b.sessions : 0;
       return {
         playerId,
         name: nameById.get(playerId)?.name ?? "—",
@@ -141,6 +176,15 @@ export function buildRecap(
         rank,
         // Positive = climbed. A debut has no previous position.
         movement: wasRanked ? (ranksBefore.get(playerId) ?? 0) - rank : null,
+        tonightDelta: a.total - b.total,
+        sessions: a.sessions,
+        wins: a.wins,
+        winRate: rateAfter,
+        // Only meaningful for people who actually played tonight.
+        winRateDelta:
+          b.sessions > 0 && a.sessions !== b.sessions
+            ? (rateAfter - rateBefore) * 100
+            : 0,
       };
     });
 

@@ -18,6 +18,11 @@ import { formatINR } from "@/lib/format";
  * Deliberately outside the alert system: `ALERT_COOLDOWN_MS` would swallow
  * consecutive buy-ins, and these want to queue rather than compete. Entering
  * three at once shows three strips, five seconds apart.
+ *
+ * **Rebuys only.** Everyone's opening buy-in lands within a few minutes of
+ * each other at the start of the night, which produced a queue of near
+ * identical strips before anything interesting had happened. A reload is the
+ * moment worth announcing; sitting down is not.
  */
 
 const HOLD_MS = 5000;
@@ -69,6 +74,9 @@ export default function BuyInTicker({
         if (seen.current.has(key)) return;
         seen.current.add(key);
         if (seeding) return;
+        // Opening buy-ins are skipped — see the note at the top of the file.
+        // They're still marked seen so they never surface later.
+        if (i === 0) return;
         fresh.push({
           key,
           name: p.nickname?.trim() || p.name,
@@ -112,15 +120,21 @@ export default function BuyInTicker({
   return (
     <div
       key={current.key}
-      // Negative offsets cancel the shell's 3vh/3vw padding so the strip runs
-      // edge to edge. z-50 puts it above the filler overlay at z-40.
-      className="pointer-events-none absolute left-[-3vw] right-[-3vw] bottom-[-3vh] z-50 buyin-strip"
+      className="pointer-events-none absolute z-50 buyin-strip"
+      // Inline rather than Tailwind arbitrary values: these negative offsets
+      // cancel the shell's 3vh/3vw padding so the strip runs edge to edge,
+      // and they're too load-bearing to risk on class generation.
+      style={{ left: "-3vw", right: "-3vw", bottom: "-3vh" }}
       aria-live="polite"
     >
       <div
-        className="flex items-center gap-[1.4vw] px-[2vw] border-t-[0.3vh] border-gold-400"
+        className="flex items-center border-t-[0.3vh] border-gold-400"
         style={{
           height: "13vh",
+          gap: "1.4vw",
+          // Extra side padding so nothing sits against the screen edge, and
+          // so the text starts inside the board's own margins.
+          padding: "0 4vw",
           background:
             "linear-gradient(90deg, rgba(10,15,12,.97) 0%, rgba(15,24,20,.93) 70%, rgba(15,24,20,.6) 100%)",
         }}
@@ -132,8 +146,10 @@ export default function BuyInTicker({
           ₹
         </div>
 
+        {/* min-w-0 lets this truncate instead of shoving the detail block
+            off the right edge when someone has a long name. */}
         <div
-          className="text-white font-bold whitespace-nowrap"
+          className="text-white font-bold truncate min-w-0"
           style={{ fontSize: "4.4vh" }}
         >
           {current.name}{" "}
@@ -143,7 +159,7 @@ export default function BuyInTicker({
           <span className="text-gold-400">{formatINR(current.amount)}</span>
         </div>
 
-        <div className="ml-auto text-right shrink-0 leading-tight">
+        <div className="ml-auto text-right shrink-0 leading-tight pl-[2vw]">
           <div className="text-white/35" style={{ fontSize: "1.9vh" }}>
             {ordinalLabel(current.ordinal)} buy-in
           </div>

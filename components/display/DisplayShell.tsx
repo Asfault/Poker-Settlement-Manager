@@ -41,7 +41,7 @@ const ALERT_COOLDOWN_MS = 20 * 1000;
  * entering a batch of buy-ins produces a trickle of stale announcements for
  * the next ten minutes.
  */
-const ALERT_MAX_AGE_MS = 60 * 1000;
+const ALERT_MAX_AGE_MS = 30 * 1000;
 const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
 const DRAWER_HOLD_MS = 3 * 60 * 1000; // stays open three minutes
 const DRAWER_FIRST_MS = DRAWER_EVERY_MS; // first one lands on the same cadence
@@ -71,6 +71,10 @@ export default function DisplayShell({
 
   // What's currently on top of the board, if anything.
   const [overlay, setOverlay] = useState<Card | null>(null);
+  // Mirrors `overlay` for the schedulers, which run inside timers and must
+  // not read stale closure state or do their thinking inside a setState
+  // updater.
+  const overlayRef = useRef<Card | null>(null);
   const recentIds = useRef<string[]>([]);
   const firedIds = useRef<Set<string>>(new Set());
   const lastAlertAt = useRef(0);
@@ -173,11 +177,21 @@ export default function DisplayShell({
 
   // ---------- Show a card ----------
 
+  useEffect(() => {
+    overlayRef.current = overlay;
+  }, [overlay]);
+
   const show = useCallback((card: Card, ms: number) => {
     if (overlayTimer.current) clearTimeout(overlayTimer.current);
     setOverlay(card);
+    // Keep the ref in step immediately — the effect above only runs after
+    // the commit, and a timer firing in between would see the old value.
+    overlayRef.current = card;
     recentIds.current = [card.id, ...recentIds.current].slice(0, RECENT_MEMORY);
-    overlayTimer.current = setTimeout(() => setOverlay(null), ms);
+    overlayTimer.current = setTimeout(() => {
+      setOverlay(null);
+      overlayRef.current = null;
+    }, ms);
   }, []);
 
   // ---------- Triggered alerts jump the queue ----------
@@ -287,44 +301,43 @@ export default function DisplayShell({
   useEffect(() => {
     if (!derived) return;
 
+    /**
+     * All the decision-making happens here, NOT inside a setState updater.
+     * React may invoke an updater more than once, and this one had side
+     * effects — every extra call scheduled another timer, so the gaps
+     * accumulated into several competing schedules and stopped being honoured.
+     * Current overlay state is read from a ref instead.
+     */
     function scheduleNext() {
       if (gapTimer.current) clearTimeout(gapTimer.current);
       gapTimer.current = setTimeout(() => {
-        setOverlay((cur) => {
-          // Don't stomp on an alert that's mid-flight.
-          if (cur) {
-            scheduleNext();
-            return cur;
-          }
-          // The drawer owns the screen while it's open — triggered alerts
-          // still interrupt, but filler waits its turn.
-          if (drawerOpen.current) {
-            scheduleNext();
-            return null;
-          }
-          // Read through the ref — this timer outlives its closure, so
-          // `derived` captured above would be minutes out of date.
-          const current = derivedRef.current;
-          if (!current) {
-            scheduleNext();
-            return null;
-          }
-          const pool = fillerCards(current, Date.now());
-          const pick = pickFiller(pool, recentIds.current);
-          if (pick) {
-            recentIds.current = [pick.id, ...recentIds.current].slice(
-              0,
-              RECENT_MEMORY,
-            );
-            if (overlayTimer.current) clearTimeout(overlayTimer.current);
-            overlayTimer.current = setTimeout(
-              () => setOverlay(null),
-              FILLER_MS,
-            );
-          }
+        // Don't stomp on an alert that's mid-flight, and let the drawer own
+        // the screen while it's open — alerts still interrupt it, filler
+        // waits its turn.
+        // Read data through refs: this timer outlives its closure, so
+        // anything captured above would be minutes out of date.
+        const current = derivedRef.current;
+        if (overlayRef.current || drawerOpen.current || !current) {
           scheduleNext();
-          return pick;
-        });
+          return;
+        }
+
+        const pool = fillerCards(current, Date.now());
+        const pick = pickFiller(pool, recentIds.current);
+        if (pick) {
+          recentIds.current = [pick.id, ...recentIds.current].slice(
+            0,
+            RECENT_MEMORY,
+          );
+          setOverlay(pick);
+          overlayRef.current = pick;
+          if (overlayTimer.current) clearTimeout(overlayTimer.current);
+          overlayTimer.current = setTimeout(() => {
+            setOverlay(null);
+            overlayRef.current = null;
+          }, FILLER_MS);
+        }
+        scheduleNext();
       }, nextGapMs());
     }
 
