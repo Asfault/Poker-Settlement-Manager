@@ -16,7 +16,10 @@ import {
   pickFiller,
   triggeredCards,
 } from "@/lib/display/content";
+import { buildRecap } from "@/lib/display/recap";
 import LiveBoard from "./LiveBoard";
+import BuyInTicker from "./BuyInTicker";
+import RecapPanels from "./RecapPanels";
 import ContentCard from "./ContentCard";
 import PlayerDrawer from "./PlayerDrawer";
 import { PlayerCard, buildPlayerCard, historyFor } from "@/lib/display/playerCard";
@@ -40,8 +43,14 @@ const ALERT_COOLDOWN_MS = 20 * 1000;
  */
 const ALERT_MAX_AGE_MS = 60 * 1000;
 const DRAWER_EVERY_MS = 30 * 60 * 1000; // one player spotlight every half hour
-const DRAWER_HOLD_MS = 2 * 60 * 1000; // stays open two minutes
+const DRAWER_HOLD_MS = 3 * 60 * 1000; // stays open three minutes
 const DRAWER_FIRST_MS = DRAWER_EVERY_MS; // first one lands on the same cadence
+/**
+ * How long the end-of-night reveal owns the screen after a session finishes.
+ * Derived from the session's ended_at rather than tracked in state, so a TV
+ * that reloads mid-recap picks up where it left off.
+ */
+const RECAP_WINDOW_MS = 30 * 60 * 1000;
 
 export default function DisplayShell({
   password,
@@ -143,6 +152,16 @@ export default function DisplayShell({
     );
   }, [live, history, now]);
 
+  /**
+   * The end-of-night reveal, active for half an hour after a session ends and
+   * only when nothing else is being played. Recomputed off the 10s clock.
+   */
+  const recap = useMemo(() => {
+    if (live) return null;
+    if (!history) return null;
+    return buildRecap(history, now, RECAP_WINDOW_MS);
+  }, [live, history, now]);
+
   // Timers fire long after their closure was created — read through refs so
   // they always see current data.
   const derivedRef = useRef(derived);
@@ -167,7 +186,7 @@ export default function DisplayShell({
     if (!derived) return;
     const t = Date.now();
 
-    const candidates = triggeredCards(derived).filter(
+    const candidates = triggeredCards(derived, t).filter(
       (c) => !firedIds.current.has(c.id),
     );
 
@@ -290,7 +309,7 @@ export default function DisplayShell({
             scheduleNext();
             return null;
           }
-          const pool = fillerCards(current);
+          const pool = fillerCards(current, Date.now());
           const pick = pickFiller(pool, recentIds.current);
           if (pick) {
             recentIds.current = [pick.id, ...recentIds.current].slice(
@@ -344,13 +363,29 @@ export default function DisplayShell({
         <LiveBoard derived={derived} now={now} />
       </div>
 
-      {drawer && <PlayerDrawer card={drawer} visible={drawerVisible} />}
+      {/* The reveal owns the screen while it's up — no filler, no drawer.
+          It's the only thing anyone's looking at. */}
+      {recap && <RecapPanels recap={recap} />}
 
-      {overlay && (
-        <div className="absolute inset-0 z-40 p-[5vh_6vw] flex flex-col justify-center bg-[#051911]/95">
+      {drawer && !recap && (
+        <PlayerDrawer card={drawer} visible={drawerVisible} />
+      )}
+
+      {overlay && !recap && (
+        <div
+          className={`absolute inset-0 z-40 flex flex-col justify-center bg-[#051911]/95 ${
+            // Art alerts bleed to the edges; everything else keeps its padding.
+            overlay.artUrl ? "" : "p-[5vh_6vw]"
+          }`}
+        >
           <ContentCard card={overlay} />
         </div>
       )}
+
+      {/* Above the overlay on purpose. A buy-in is the live moment; filler
+          is wallpaper. The strip is additive rather than screen-owning, so
+          it can sit on top without hiding anything that matters. */}
+      <BuyInTicker live={live} />
 
       {error && (
         <div className="absolute bottom-4 right-5 text-[#ef4444]/70 text-sm">

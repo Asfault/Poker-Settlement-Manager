@@ -1,6 +1,7 @@
 "use client";
 
 import type { LiveRow } from "@/lib/display/derive";
+import { useCountUp } from "@/lib/display/useCountUp";
 import { formatINR } from "@/lib/format";
 import DisplayAvatar from "./DisplayAvatar";
 import TiltAura from "./TiltAura";
@@ -81,6 +82,26 @@ export default function PokerTable({
   const seats = layout(rows);
   const scale = seatScale(rows.length);
 
+  // The pot ticks up rather than jumping by thousands between polls.
+  const shownPot = useCountUp(pot);
+
+  /**
+   * Whoever bought in within the last few seconds gets a flare on their seat.
+   * `now` ticks every 10s in DisplayShell, so this resolves itself without
+   * any extra state.
+   */
+  const FLARE_MS = 6000;
+  const justBoughtIn = new Set(
+    rows
+      .filter((r) => r.lastBuyInAt !== null && now - r.lastBuyInAt < FLARE_MS)
+      .map((r) => r.playerId),
+  );
+
+  /** Deepest pockets tonight, once it's meaningful. Gets a gold aura. */
+  const atm = [...rows]
+    .filter((r) => r.buyInCount >= 3)
+    .sort((a, b) => b.totalBuyIn - a.totalBuyIn)[0];
+
   const mins = Math.max(0, Math.floor((now - startedAt) / 60000));
   const h = Math.floor(mins / 60);
   const m = mins % 60;
@@ -126,7 +147,7 @@ export default function PokerTable({
               "0 0.4vh 2.5vh rgba(0,0,0,0.85), 0 0 4vh rgba(255,200,90,0.3)",
           }}
         >
-          {formatINR(pot)}
+          {formatINR(shownPot)}
         </div>
       </div>
 
@@ -156,11 +177,14 @@ export default function PokerTable({
                 transform: "translate(-50%, -50%)",
                 width: "165%",
                 height: "150%",
+                // Tilt wins over ATM — being on tilt is the more urgent fact.
                 background: row.tilted
                   ? "radial-gradient(ellipse at 50% 38%, rgba(255,90,70,0.34) 0%, rgba(220,40,35,0.16) 40%, transparent 70%)"
-                  : row.isHost
-                    ? "radial-gradient(ellipse at 50% 38%, rgba(255,214,140,0.36) 0%, rgba(255,196,110,0.16) 38%, transparent 68%)"
-                    : "radial-gradient(ellipse at 50% 38%, rgba(255,240,215,0.2) 0%, rgba(255,230,190,0.08) 40%, transparent 68%)",
+                  : atm && atm.playerId === row.playerId
+                    ? "radial-gradient(ellipse at 50% 38%, rgba(255,206,84,0.44) 0%, rgba(233,180,60,0.2) 40%, transparent 70%)"
+                    : row.isHost
+                      ? "radial-gradient(ellipse at 50% 38%, rgba(255,214,140,0.36) 0%, rgba(255,196,110,0.16) 38%, transparent 68%)"
+                      : "radial-gradient(ellipse at 50% 38%, rgba(255,240,215,0.2) 0%, rgba(255,230,190,0.08) 40%, transparent 68%)",
               }}
             />
 
@@ -172,17 +196,25 @@ export default function PokerTable({
                 <img
                   src={row.characterUrl}
                   alt={row.displayName}
-                  className="relative object-contain"
+                  className={`relative object-contain ${
+                    justBoughtIn.has(row.playerId) ? "seat-flare-art" : ""
+                  }`}
                   style={{
                     height: `${16 * depthScale}vw`,
                     maxHeight: `${34 * depthScale}vh`,
                     filter: row.tilted
                       ? "drop-shadow(0 0 1vw rgba(255,70,60,0.8)) drop-shadow(0 0 2.2vw rgba(220,30,30,0.5))"
-                      : "drop-shadow(0 1.2vh 2.2vh rgba(0,0,0,0.8))",
+                      : atm && atm.playerId === row.playerId
+                        ? "drop-shadow(0 0 1vw rgba(255,206,84,0.75)) drop-shadow(0 0 2.2vw rgba(233,180,60,0.45))"
+                        : "drop-shadow(0 1.2vh 2.2vh rgba(0,0,0,0.8))",
                   }}
                 />
               ) : (
-                <div className="relative">
+                <div
+                  className={`relative ${
+                    justBoughtIn.has(row.playerId) ? "seat-flare" : ""
+                  }`}
+                >
                   <DisplayAvatar
                     name={row.displayName}
                     photoUrl={row.photoUrl}
@@ -190,9 +222,11 @@ export default function PokerTable({
                     ring={
                       row.tilted
                         ? "rgba(255,92,92,0.9)"
-                        : row.isHost
-                          ? "rgba(255,214,140,0.85)"
-                          : undefined
+                        : atm && atm.playerId === row.playerId
+                          ? "rgba(255,206,84,0.9)"
+                          : row.isHost
+                            ? "rgba(255,214,140,0.85)"
+                            : undefined
                     }
                   />
                 </div>

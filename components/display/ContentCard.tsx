@@ -56,6 +56,12 @@ function Title({ card }: { card: Card }) {
 }
 
 function AlertBody({ card, accent }: { card: Card; accent: string }) {
+  // With artwork, the alert goes full-bleed: art on the right, text left over
+  // a scrim. Same asset the seats use, but readable from across a room.
+  if (card.artUrl) {
+    return <ArtAlertBody card={card} accent={accent} />;
+  }
+
   return (
     <div className="text-center">
       {card.photoUrl && (
@@ -83,6 +89,69 @@ function AlertBody({ card, accent }: { card: Card; accent: string }) {
           {card.body}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Full-bleed character art with the text laid over it.
+ *
+ * The scrim is doing real work — artwork varies, and white text over a light
+ * image is unreadable. It's opaque on the left where the words are and clears
+ * by about 70%, so the art is unobscured where it matters.
+ *
+ * Rendered outside the padded overlay via negative insets so the art actually
+ * reaches the edges of the screen.
+ */
+function ArtAlertBody({ card, accent }: { card: Card; accent: string }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(ellipse at 72% 60%, ${accent}26 0%, transparent 62%)`,
+        }}
+      />
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={card.artUrl ?? ""}
+        alt=""
+        aria-hidden="true"
+        className="absolute object-contain animate-[fadeIn_500ms_ease-out]"
+        style={{
+          right: "4%",
+          bottom: 0,
+          height: "94%",
+          filter: `drop-shadow(0 0 3vw ${accent}80)`,
+        }}
+      />
+
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(5,25,17,0.97) 0%, rgba(5,25,17,0.9) 40%, rgba(5,25,17,0.35) 62%, transparent 78%)",
+        }}
+      />
+
+      <div className="absolute inset-y-0 left-0 flex flex-col justify-center px-[6vw] max-w-[62%]">
+        <div
+          className="font-black leading-[0.92] tracking-tight"
+          style={{
+            color: accent,
+            fontSize: "clamp(44px, 6.4vw, 118px)",
+            textShadow: "0 4px 24px rgba(0,0,0,0.75)",
+          }}
+        >
+          {card.title}
+        </div>
+        {card.body && (
+          <div className="text-white/75 mt-[3vh] text-[clamp(18px,2.2vw,38px)] leading-snug">
+            {card.body}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

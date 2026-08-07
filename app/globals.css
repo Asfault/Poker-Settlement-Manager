@@ -54,6 +54,82 @@ body {
   height: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
+/* Buy-in lower third — slides up over the board, holds, and is replaced.
+   Transform and opacity only, so it's GPU-composited and won't drop frames
+   on a smart TV the way a video decode can. */
+@keyframes buyInSlide {
+  from {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.buyin-strip {
+  animation: buyInSlide 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes buyInChip {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.buyin-chip {
+  animation: buyInChip 1.6s ease-in-out infinite;
+}
+
+/* A seat flares when its player buys in. */
+@keyframes seatFlare {
+  0% {
+    box-shadow: 0 0 0 0 rgba(233, 196, 106, 0.75);
+  }
+  70% {
+    box-shadow: 0 0 0 2.2vh rgba(233, 196, 106, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(233, 196, 106, 0);
+  }
+}
+
+.seat-flare {
+  animation: seatFlare 1.5s ease-out 2;
+  border-radius: 9999px;
+}
+
+/* Character art is an irregular cut-out, so a ring around it looks wrong.
+   A brief scale pulse reads as the same beat and stays GPU-composited. */
+@keyframes artFlare {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.06);
+  }
+}
+
+.seat-flare-art {
+  animation: artFlare 1.5s ease-out 2;
+  transform-origin: 50% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buyin-strip,
+  .buyin-chip,
+  .seat-flare,
+  .seat-flare-art {
+    animation: none !important;
+  }
+}
+
 /* Tilt aura — two layers pulsing out of phase so the crackle feels alive */
 @keyframes tiltPulse {
   0%,

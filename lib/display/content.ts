@@ -42,6 +42,13 @@ export interface Card {
   tone?: "win" | "loss" | "neutral" | "gold";
   data?: CardDatum[];
   photoUrl?: string | null;
+  /**
+   * Character artwork, when the player has any. Alerts render this full-bleed
+   * behind the text rather than as a thumbnail — same asset, far more impact
+   * from across a room. Kept separate from photoUrl so the card can choose a
+   * layout rather than guessing what it was handed.
+   */
+  artUrl?: string | null;
   /** Higher wins when several triggers fire at once. */
   priority?: number;
   /**
@@ -71,7 +78,7 @@ function hours(ms: number): string {
 //  Triggered — fire on live events
 // ============================================================
 
-export function triggeredCards(d: Derived): Card[] {
+export function triggeredCards(d: Derived, now = Date.now()): Card[] {
   const out: Card[] = [];
   const live = d.live;
   if (!live) return out;
@@ -92,7 +99,8 @@ export function triggeredCards(d: Derived): Card[] {
         title: `${r.displayName.toUpperCase()} IS ON TILT`,
         body: `${r.recentBuyIns} buy-ins in 15 minutes. Someone take the cards away.`,
         tone: "loss",
-        photoUrl: r.characterUrl ?? r.photoUrl,
+        photoUrl: r.photoUrl,
+        artUrl: r.characterUrl,
         priority: 100,
         at: r.tiltStartedAt,
       });
@@ -109,7 +117,8 @@ export function triggeredCards(d: Derived): Card[] {
       title: `${deepest.displayName.toUpperCase()} IS THE ATM`,
       body: `${formatINR(deepest.totalBuyIn)} across ${deepest.buyInCount} buy-ins tonight.`,
       tone: "gold",
-      photoUrl: deepest.characterUrl ?? deepest.photoUrl,
+      photoUrl: deepest.photoUrl,
+      artUrl: deepest.characterUrl,
       priority: 70,
       at: deepest.lastBuyInAt ?? undefined,
     });
@@ -139,7 +148,8 @@ export function triggeredCards(d: Derived): Card[] {
       title: "FIRST REBUY OF THE NIGHT",
       body: `${first.displayName} is back in for more.`,
       tone: "loss",
-      photoUrl: first.characterUrl ?? first.photoUrl,
+      photoUrl: first.photoUrl,
+      artUrl: first.characterUrl,
       priority: 65,
       at: first.lastBuyInAt ?? undefined,
     });
@@ -170,10 +180,148 @@ export function triggeredCards(d: Derived): Card[] {
       title: `${rock.displayName.toUpperCase()} HASN'T REBOUGHT`,
       body: "Everyone else has. Make of that what you will.",
       tone: "win",
-      photoUrl: rock.characterUrl ?? rock.photoUrl,
+      photoUrl: rock.photoUrl,
+      artUrl: rock.characterUrl,
       priority: 50,
       at: lastAny || undefined,
     });
+  }
+
+  // The inverse: nobody survived. Fires once, on the buy-in that completed it.
+  if (
+    live.rows.length >= 3 &&
+    rocks.length === 0 &&
+    live.rows.every((r) => r.buyInCount > 1)
+  ) {
+    out.push({
+      id: `all-in-again-${live.sessionId}`,
+      kind: "alert",
+      title: "EVERYONE HAS RELOADED",
+      body: "Not a single survivor from the first buy-in.",
+      tone: "loss",
+      priority: 55,
+      at: lastAny || undefined,
+    });
+  }
+
+  // ---------- Time-based ----------
+  //
+  // These key their id on the threshold they crossed, not on the clock, so
+  // each fires exactly once per episode rather than every second.
+
+  const elapsed = now - live.startedAt;
+
+  // Quiet table. Only interesting once the night is properly underway, and
+  // only if somebody has actually bought in.
+  const QUIET_MS = 30 * 60 * 1000;
+  if (lastAny > 0 && elapsed > QUIET_MS && now - lastAny > QUIET_MS) {
+    const quietBlocks = Math.floor((now - lastAny) / QUIET_MS);
+    out.push({
+      id: `quiet-${live.sessionId}-${quietBlocks}`,
+      kind: "alert",
+      title: "THE TABLE HAS GONE QUIET",
+      body: `No buy-ins for ${hours(now - lastAny)}. Someone's card-dead, or everyone's playing well.`,
+      tone: "neutral",
+      priority: 30,
+      // Dated to the moment it became true, so a stale one is discarded.
+      at: lastAny + quietBlocks * QUIET_MS,
+    });
+  }
+
+  // Hour markers. Only past the third hour — before that it's just a clock.
+  const hoursIn = Math.floor(elapsed / 3600000);
+  if (hoursIn >= 3) {
+    const avg = d.group.avgDurationMs;
+    const pastAverage = avg !== null && elapsed > avg;
+    out.push({
+      id: `hour-${live.sessionId}-${hoursIn}`,
+      kind: "alert",
+      title: `${hoursIn} HOURS IN`,
+      body: pastAverage
+        ? `Longer than the usual ${hours(avg!)} already.`
+        : "And still going.",
+      tone: "gold",
+      priority: 35,
+      at: live.startedAt + hoursIn * 3600000,
+    });
+  }
+
+  // Late night. Keyed on the hour so it fires once at 1am, once at 2am.
+  const hourOfDay = new Date(now).getHours();
+  if (hourOfDay >= 1 && hourOfDay <= 4) {
+    const stamp = new Date(now);
+    stamp.setMinutes(0, 0, 0);
+    out.push({
+      id: `latenight-${live.sessionId}-${hourOfDay}`,
+      kind: "alert",
+      title: `IT'S ${hourOfDay}AM`,
+      body: "Nobody has gone home. Respect, or concern.",
+      tone: "neutral",
+      priority: 25,
+      at: stamp.getTime(),
+    });
+  }
+
+  // A debut, fired on their first buy-in rather than at session start — an
+  // alert has to be about a moment, or the 60s age limit discards it.
+  const played = new Set(
+    d.lifetime.filter((p) => p.sessions > 0).map((p) => p.playerId),
+  );
+  for (const r of live.rows) {
+    if (played.has(r.playerId)) continue;
+    if (r.buyInCount !== 1 || r.lastBuyInAt === null) continue;
+    out.push({
+      id: `debut-${r.playerId}`,
+      kind: "alert",
+      title: `${r.displayName.toUpperCase()}'S FIRST NIGHT`,
+      body: "Everyone's first game is their best game. Allegedly.",
+      tone: "gold",
+      photoUrl: r.photoUrl,
+      artUrl: r.characterUrl,
+      priority: 75,
+      at: r.lastBuyInAt,
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Milestones are facts about the whole night, not moments — "game number 50"
+ * is as true at 2am as it was at 9pm. They live in filler rather than as
+ * alerts, because an alert dated to session start would be discarded by
+ * ALERT_MAX_AGE_MS unless the TV happened to be switched on in the first
+ * minute.
+ */
+function milestoneCards(d: Derived, now: number): Card[] {
+  const out: Card[] = [];
+  if (!d.live) return out;
+
+  // group.sessions counts completed games, so tonight is the one after that.
+  const sessionNumber = d.group.sessions + 1;
+  if (sessionNumber >= 10 && sessionNumber % 10 === 0) {
+    out.push({
+      id: `milestone-session-${sessionNumber}`,
+      kind: "stat",
+      title: "Tonight is game number",
+      value: String(sessionNumber),
+      subtitle: "This table has seen things",
+      tone: "gold",
+    });
+  }
+
+  if (d.group.firstSession !== null) {
+    const years = Math.floor((now - d.group.firstSession) / (365 * 86400000));
+    const anniversary = d.group.firstSession + years * 365 * 86400000;
+    if (years >= 1 && now - anniversary < 86400000) {
+      out.push({
+        id: `anniversary-${years}`,
+        kind: "fact",
+        title: years === 1 ? "One year of this" : `${years} years of this`,
+        body: `${d.group.sessions} nights since the first game, and nobody has learned anything.`,
+        tone: "gold",
+      });
+    }
   }
 
   return out;
@@ -183,8 +331,8 @@ export function triggeredCards(d: Derived): Card[] {
 //  Filler — rotates when nothing's happening
 // ============================================================
 
-export function fillerCards(d: Derived): Card[] {
-  const out: Card[] = [];
+export function fillerCards(d: Derived, now = Date.now()): Card[] {
+  const out: Card[] = [...milestoneCards(d, now)];
   const { group, live } = d;
 
   // Archived players keep their place in the leaderboard and in history,
@@ -532,10 +680,18 @@ export function pickFiller(
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** Gap before the next filler card: 30s, 1m, 2m or 10m. */
+/**
+ * Gap before the next filler card: 2m, 3m or 7m, averaging about 3 minutes.
+ *
+ * Deliberately slower than it looks like it should be. The pool is roughly 50
+ * cards; at the old ~110s average every card showed twice a night and the
+ * board felt repetitive by hour three. Buy-in notifications and triggered
+ * alerts are what make it feel alive — filler is the quiet in between, and
+ * the 7-minute option exists so the board genuinely rests.
+ */
 export function nextGapMs(): number {
-  const options = [30_000, 60_000, 120_000, 600_000];
-  const weights = [4, 4, 3, 1];
+  const options = [120_000, 180_000, 420_000];
+  const weights = [4, 3, 1];
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
   for (let i = 0; i < options.length; i += 1) {
