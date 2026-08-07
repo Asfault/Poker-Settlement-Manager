@@ -10,17 +10,27 @@
 
 // Vertical centres of the two panels, as a fraction of the image height.
 const NAME_Y = 30;
-const AMOUNT_Y = 61;
+const AMOUNT_Y = 63;
+/**
+ * The buy-in chain sits in the gap between the two panels, just above the
+ * amount. It's the one place with room to spare, and putting it here keeps
+ * the whole plate reading as a single block rather than trailing text
+ * underneath it.
+ */
+const HISTORY_Y = 46;
 
 export default function NamePlate({
   name,
   amount,
+  history,
   /** Multiplier applied to width and type size. */
   scale = 1,
   highlight = false,
 }: {
   name: string;
   amount: string;
+  /** Compact buy-in chain, e.g. "5+2.5+5". Omitted on a single buy-in. */
+  history?: string;
   scale?: number;
   highlight?: boolean;
 }) {
@@ -63,6 +73,27 @@ export default function NamePlate({
           {name}
         </div>
       </div>
+
+      {/* Buy-in history, in the same gold as the amount below it */}
+      {history && (
+        <div
+          className="absolute left-[8%] right-[8%] text-center"
+          style={{
+            top: `${HISTORY_Y}%`,
+            transform: "translateY(-50%)",
+          }}
+        >
+          <div
+            className="text-[#ffd95a]/70 font-bold tabular-nums truncate leading-none"
+            style={{
+              fontSize: `${0.92 * scale}vw`,
+              textShadow: "0 0.15vw 0.3vw rgba(0,0,0,0.85)",
+            }}
+          >
+            {history}
+          </div>
+        </div>
+      )}
 
       {/* Buy-in */}
       <div

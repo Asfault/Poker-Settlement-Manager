@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DisplayLiveSession } from "@/lib/db/display";
 import { formatINR } from "@/lib/format";
+import { SHELL_PAD_VH, TICKER_HEIGHT_VH } from "./Ticker";
 
 /**
  * The buy-in lower third.
@@ -124,27 +125,31 @@ export default function BuyInTicker({
       // Inline rather than Tailwind arbitrary values: these negative offsets
       // cancel the shell's 3vh/3vw padding so the strip runs edge to edge,
       // and they're too load-bearing to risk on class generation.
-      // Sits flush at the bottom, covering the ticker for its five seconds
+      // Sits exactly where the ticker does, covering it for its five seconds
       // rather than covering the players. Negative offsets cancel the
-      // shell's 3vh/3vw padding so it runs edge to edge.
-      style={{ left: "-3vw", right: "-3vw", bottom: "-3vh" }}
+      // shell's padding so it runs edge to edge.
+      style={{
+        left: `-${SHELL_PAD_VH}vw`,
+        right: `-${SHELL_PAD_VH}vw`,
+        bottom: `-${SHELL_PAD_VH}vh`,
+      }}
       aria-live="polite"
     >
+      {/* Exactly the ticker's height, so it replaces the crawl rather than
+          eating into the board above it. Everything sits on one line. */}
       <div
         className="flex items-center border-t-[0.3vh] border-gold-400"
         style={{
-          height: "13vh",
-          gap: "1.4vw",
-          // Extra side padding so nothing sits against the screen edge, and
-          // so the text starts inside the board's own margins.
-          padding: "0 4vw",
+          height: `${TICKER_HEIGHT_VH}vh`,
+          gap: "1.2vw",
+          padding: "0 2vw",
           background:
             "linear-gradient(90deg, rgba(10,15,12,.97) 0%, rgba(15,24,20,.93) 70%, rgba(15,24,20,.6) 100%)",
         }}
       >
         <div
           className="shrink-0 rounded-full bg-gold-400 text-felt-900 font-bold flex items-center justify-center buyin-chip"
-          style={{ width: "6.4vh", height: "6.4vh", fontSize: "3vh" }}
+          style={{ width: "5.2vh", height: "5.2vh", fontSize: "2.6vh" }}
         >
           ₹
         </div>
@@ -153,22 +158,23 @@ export default function BuyInTicker({
             off the right edge when someone has a long name. */}
         <div
           className="text-white font-bold truncate min-w-0"
-          style={{ fontSize: "4.4vh" }}
+          style={{ fontSize: "3.6vh" }}
         >
           {current.name}{" "}
-          <span className="text-white/50" style={{ fontSize: "3vh" }}>
+          <span className="text-white/50" style={{ fontSize: "2.5vh" }}>
             buys in
           </span>{" "}
           <span className="text-gold-400">{formatINR(current.amount)}</span>
         </div>
 
-        <div className="ml-auto text-right shrink-0 leading-tight pl-[2vw]">
-          <div className="text-white/35" style={{ fontSize: "1.9vh" }}>
-            {ordinalLabel(current.ordinal)} buy-in
-          </div>
-          <div className="text-white/65" style={{ fontSize: "2.6vh" }}>
+        <div
+          className="ml-auto shrink-0 whitespace-nowrap text-white/55"
+          style={{ fontSize: "2.3vh" }}
+        >
+          {ordinalLabel(current.ordinal)} ·{" "}
+          <span className="text-white/80">
             {formatINR(current.runningTotal)} tonight
-          </div>
+          </span>
         </div>
       </div>
     </div>

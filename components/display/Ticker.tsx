@@ -17,6 +17,12 @@ import { formatINR } from "@/lib/format";
  */
 
 export const TICKER_HEIGHT_VH = 8;
+/**
+ * The shell has 3vh of padding all round. The ticker cancels the bottom of
+ * it so the strip runs flush to the screen edge — otherwise there's a black
+ * band underneath it, and the board is smaller than it needs to be.
+ */
+export const SHELL_PAD_VH = 3;
 
 export default function Ticker({ derived }: { derived: Derived | null }) {
   const items = useMemo(() => buildItems(derived), [derived]);
@@ -24,8 +30,13 @@ export default function Ticker({ derived }: { derived: Derived | null }) {
 
   return (
     <div
-      className="absolute inset-x-0 bottom-0 z-20 overflow-hidden flex items-center border-t border-gold-400/30 bg-[#060d09]/95"
-      style={{ height: `${TICKER_HEIGHT_VH}vh` }}
+      className="absolute z-20 overflow-hidden flex items-center border-t border-gold-400/30 bg-[#060d09]/95"
+      style={{
+        height: `${TICKER_HEIGHT_VH}vh`,
+        left: `-${SHELL_PAD_VH}vw`,
+        right: `-${SHELL_PAD_VH}vw`,
+        bottom: `-${SHELL_PAD_VH}vh`,
+      }}
       aria-hidden="true"
     >
       <div

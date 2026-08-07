@@ -19,7 +19,7 @@ import {
 import { buildRecap } from "@/lib/display/recap";
 import LiveBoard from "./LiveBoard";
 import BuyInTicker from "./BuyInTicker";
-import Ticker, { TICKER_HEIGHT_VH } from "./Ticker";
+import Ticker, { SHELL_PAD_VH, TICKER_HEIGHT_VH } from "./Ticker";
 import ShotClock from "./ShotClock";
 import RecapPanels from "./RecapPanels";
 import ContentCard from "./ContentCard";
@@ -405,7 +405,9 @@ export default function DisplayShell({
       <div
         className="relative transition-opacity duration-500"
         style={{
-          height: `calc(100% - ${TICKER_HEIGHT_VH}vh)`,
+          // The ticker runs flush to the screen edge, so the board reclaims
+          // the shell's bottom padding and only gives up the ticker itself.
+          height: `calc(100% + ${SHELL_PAD_VH}vh - ${TICKER_HEIGHT_VH}vh)`,
           opacity: overlay ? 0.08 : 1,
         }}
       >

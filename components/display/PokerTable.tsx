@@ -250,29 +250,20 @@ export default function PokerTable({
             </div>
 
             <div className="relative">
+              {/* Buy-in history goes inside the plate, just above the
+                  amount — hidden on a single buy-in, where it'd only
+                  repeat the total. */}
               <NamePlate
                 name={row.displayName}
                 amount={formatINR(row.totalBuyIn)}
+                history={
+                  row.buyIns.length >= 2
+                    ? buyInChain(row.buyIns.map((b) => b.amount))
+                    : undefined
+                }
                 scale={depthScale}
                 highlight={row.isHost}
               />
-
-              {/* Buy-in history, in the same shorthand as the summary image.
-                  Sits under the plate rather than inside it — the artwork is
-                  a fixed PNG with text registered to its two panels, so a
-                  third line in there would fall out of alignment. Hidden on
-                  a single buy-in, where it'd just repeat the total. */}
-              {row.buyIns.length >= 2 && (
-                <div
-                  className="text-center tabular-nums leading-none text-white/45"
-                  style={{
-                    fontSize: `${0.85 * depthScale}vw`,
-                    marginTop: `${-0.6 * depthScale}vw`,
-                  }}
-                >
-                  {buyInChain(row.buyIns.map((b) => b.amount))}
-                </div>
-              )}
             </div>
           </div>
         );

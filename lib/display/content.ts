@@ -129,8 +129,18 @@ export function triggeredCards(d: Derived, now = Date.now()): Card[] {
   }
 
   // Cards are in the air.
-  const totalBuyIns = live.rows.reduce((s, r) => s + r.buyInCount, 0);
-  if (totalBuyIns >= 1) {
+  //
+  // Dated to the FIRST BUY-IN, not to session start. The session row is
+  // created while people are still arriving, so anchoring to `startedAt`
+  // meant that if the host set up the game and waited even a minute before
+  // the first buy-in, this was already stale and got burned unseen.
+  const firstBuyInAt = live.rows.reduce<number | null>((earliest, r) => {
+    const first = r.buyIns[0]?.at;
+    if (first === undefined) return earliest;
+    return earliest === null || first < earliest ? first : earliest;
+  }, null);
+
+  if (firstBuyInAt !== null) {
     out.push({
       id: `underway-${live.sessionId}`,
       kind: "alert",
@@ -138,7 +148,7 @@ export function triggeredCards(d: Derived, now = Date.now()): Card[] {
       body: `${live.playerCount} at the table. Good luck.`,
       tone: "gold",
       priority: 40,
-      at: live.startedAt,
+      at: firstBuyInAt,
     });
   }
 
