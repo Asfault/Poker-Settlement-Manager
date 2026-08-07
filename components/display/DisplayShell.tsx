@@ -75,6 +75,12 @@ export default function DisplayShell({
   // not read stale closure state or do their thinking inside a setState
   // updater.
   const overlayRef = useRef<Card | null>(null);
+  /**
+   * The moment a session ends, `live` goes null but `history` hasn't caught
+   * up yet, so there's a beat where the recap can't be built and the board
+   * falls back to the idle leaderboard. This holds the screen across that gap.
+   */
+  const [awaitingRecap, setAwaitingRecap] = useState(false);
   const recentIds = useRef<string[]>([]);
   const firedIds = useRef<Set<string>>(new Set());
   const lastAlertAt = useRef(0);
@@ -101,6 +107,10 @@ export default function DisplayShell({
       setHistory(full.history);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Connection lost");
+    } finally {
+      // Whatever happened, stop holding the screen — a failed refetch
+      // shouldn't leave the board stuck on the interstitial.
+      setAwaitingRecap(false);
     }
   }, [password, onSignOut]);
 
@@ -128,6 +138,9 @@ export default function DisplayShell({
         completedCount.current !== null &&
         next.completed_count !== completedCount.current
       ) {
+        // Hold the board until the finished session is actually in history,
+        // otherwise the idle leaderboard flashes up for a second first.
+        setAwaitingRecap(true);
         loadHistory();
       }
       completedCount.current = next.completed_count;
@@ -375,6 +388,19 @@ export default function DisplayShell({
       >
         <LiveBoard derived={derived} now={now} />
       </div>
+
+      {/* Covers the beat between the session ending and history catching up,
+          so the idle leaderboard doesn't flash before the reveal starts. */}
+      {awaitingRecap && !recap && !live && (
+        <div className="absolute inset-0 z-30 bg-[#051911] flex flex-col items-center justify-center animate-[fadeIn_300ms_ease-out]">
+          <div className="text-[#e9c46a] font-black tracking-[0.2em] uppercase text-[clamp(20px,2.4vw,42px)]">
+            Counting the chips
+          </div>
+          <div className="text-white/35 mt-[1.5vh] text-[clamp(14px,1.5vw,26px)]">
+            That&apos;s a wrap on tonight
+          </div>
+        </div>
+      )}
 
       {/* The reveal owns the screen while it's up — no filler, no drawer.
           It's the only thing anyone's looking at. */}
