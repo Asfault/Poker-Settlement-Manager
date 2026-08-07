@@ -10,8 +10,10 @@ import {
   deleteSession,
   removeBuyIn,
   removeSessionPlayer,
+  setShotClock,
   sumBuyIns,
 } from "@/lib/db/sessions";
+import { SHOT_CLOCK_SECONDS } from "@/lib/db/display";
 import { RosterPlayer, createPlayer, listPlayers } from "@/lib/db/players";
 import {
   createExpense,
@@ -94,6 +96,41 @@ export default function HostLiveSession({
     (sum, e) => sum + expenseTotal(e),
     0,
   );
+
+  /**
+   * The shot clock. One button: tap to start, tap again to kill it early.
+   * `clockRunning` is optimistic so the label flips instantly rather than
+   * waiting for a refresh — the display reads the real value from the
+   * database within a second either way.
+   */
+  const [clockRunning, setClockRunning] = useState(
+    Boolean(session.clock_started_at),
+  );
+
+  useEffect(() => {
+    setClockRunning(Boolean(session.clock_started_at));
+  }, [session.clock_started_at]);
+
+  // It expires on its own; flip the label back so the button doesn't sit
+  // there claiming a finished clock is still running.
+  useEffect(() => {
+    if (!clockRunning || !session.clock_started_at) return;
+    const started = new Date(session.clock_started_at).getTime();
+    const left = SHOT_CLOCK_SECONDS * 1000 - (Date.now() - started);
+    const id = setTimeout(() => setClockRunning(false), Math.max(0, left));
+    return () => clearTimeout(id);
+  }, [clockRunning, session.clock_started_at]);
+
+  async function toggleClock() {
+    const next = !clockRunning;
+    setClockRunning(next);
+    try {
+      await setShotClock(session.id, next);
+    } catch {
+      setClockRunning(!next);
+      setError("Could not reach the clock");
+    }
+  }
 
   const nameFor = (playerId: string) =>
     players.find((p) => p.player_id === playerId)?.display_name ?? "Someone";
@@ -437,6 +474,21 @@ export default function HostLiveSession({
               </Card>
             );
           })}
+
+          {/* Shot clock. One button, 30 seconds, no options — it needs to be
+              tappable without looking while a hand is stalling. */}
+          <button
+            onClick={toggleClock}
+            className={`w-full min-h-[56px] rounded-2xl border font-semibold transition-colors ${
+              clockRunning
+                ? "border-loss bg-loss/15 text-loss"
+                : "border-white/15 text-white/70 hover:text-white hover:border-white/30"
+            }`}
+          >
+            {clockRunning
+              ? "Stop the clock"
+              : `Start ${SHOT_CLOCK_SECONDS}s clock`}
+          </button>
 
           {/* Expenses — food, drinks, whatever got ordered. A separate
               ledger: never enters buy-ins, chips or anyone's poker record. */}

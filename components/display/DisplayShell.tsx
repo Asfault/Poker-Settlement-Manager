@@ -19,6 +19,8 @@ import {
 import { buildRecap } from "@/lib/display/recap";
 import LiveBoard from "./LiveBoard";
 import BuyInTicker from "./BuyInTicker";
+import Ticker, { TICKER_HEIGHT_VH } from "./Ticker";
+import ShotClock from "./ShotClock";
 import RecapPanels from "./RecapPanels";
 import ContentCard from "./ContentCard";
 import PlayerDrawer from "./PlayerDrawer";
@@ -68,6 +70,11 @@ export default function DisplayShell({
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const completedCount = useRef<number | null>(null);
+  /**
+   * serverNow − deviceNow, measured on each live poll. The shot clock counts
+   * against this rather than the TV's own clock, which is frequently wrong.
+   */
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
 
   // What's currently on top of the board, if anything.
   const [overlay, setOverlay] = useState<Card | null>(null);
@@ -132,6 +139,13 @@ export default function DisplayShell({
       }
       setLive(next.live);
       setError(null);
+      if (next.server_time) {
+        const skew = new Date(next.server_time).getTime() - Date.now();
+        // Ignore sub-second noise so this doesn't churn every poll.
+        setServerOffsetMs((prev) =>
+          Math.abs(skew - prev) > 1000 ? skew : prev,
+        );
+      }
 
       // A session just finished — pull fresh history so stats update.
       if (
@@ -381,13 +395,22 @@ export default function DisplayShell({
 
   return (
     <div className="min-h-screen h-screen overflow-hidden relative p-[3vh_3vw]">
-      {/* Board is always mounted; overlays sit on top of it. */}
+      {/* Board is always mounted; overlays sit on top of it. The bottom
+          inset keeps the table clear of the ticker, so seats at the front
+          of the ellipse aren't sitting behind it. */}
       <div
-        className="h-full transition-opacity duration-500"
-        style={{ opacity: overlay ? 0.08 : 1 }}
+        className="transition-opacity duration-500"
+        style={{
+          height: `calc(100% - ${TICKER_HEIGHT_VH}vh)`,
+          opacity: overlay ? 0.08 : 1,
+        }}
       >
         <LiveBoard derived={derived} now={now} />
       </div>
+
+      {/* Always moving, so the board is never completely still. Hidden
+          during the reveal, which owns the screen. */}
+      {!recap && <Ticker derived={derived} />}
 
       {/* Covers the beat between the session ending and history catching up,
           so the idle leaderboard doesn't flash before the reveal starts. */}
@@ -425,6 +448,16 @@ export default function DisplayShell({
           is wallpaper. The strip is additive rather than screen-owning, so
           it can sit on top without hiding anything that matters. */}
       <BuyInTicker live={live} />
+
+      {/* Outranks everything — someone is being told to act. */}
+      <ShotClock
+        startedAt={
+          live?.clock_started_at
+            ? new Date(live.clock_started_at).getTime()
+            : null
+        }
+        serverOffsetMs={serverOffsetMs}
+      />
 
       {error && (
         <div className="absolute bottom-4 right-5 text-[#ef4444]/70 text-sm">

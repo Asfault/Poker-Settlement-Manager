@@ -130,6 +130,69 @@ body {
   }
 }
 
+/* Shot clock. The last ten seconds pulse; expiry flashes the whole screen
+   red, which is the only time anything on the board shouts. */
+@keyframes shotClockPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.82;
+  }
+}
+
+.shotclock-urgent {
+  animation: shotClockPulse 1s ease-in-out infinite;
+}
+
+@keyframes shotClockDead {
+  0%,
+  100% {
+    background-color: rgba(190, 24, 24, 0.94);
+  }
+  50% {
+    background-color: rgba(120, 12, 12, 0.94);
+  }
+}
+
+.shotclock-dead {
+  animation: shotClockDead 0.7s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shotclock-urgent {
+    animation: none !important;
+  }
+  .shotclock-dead {
+    animation: none !important;
+    background-color: rgba(170, 20, 20, 0.94);
+  }
+}
+
+/* Ticker — a slow crawl so the board is never completely still. */
+@keyframes tickerCrawl {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-crawl {
+  animation: tickerCrawl 70s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-crawl {
+    animation: none !important;
+  }
+}
+
 /* Tilt aura — two layers pulsing out of phase so the crackle feels alive */
 @keyframes tiltPulse {
   0%,

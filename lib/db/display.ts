@@ -28,8 +28,17 @@ export interface DisplayLiveSession {
   status: string;
   house_fee_per_player: number;
   host_player_id: string | null;
+  /**
+   * When the shot clock was started, or null if none is running. The
+   * duration is a constant in the app; the display works out what's left
+   * against `server_time` so a TV with a wrong clock still counts correctly.
+   */
+  clock_started_at?: string | null;
   players: DisplayLivePlayer[];
 }
+
+/** How long the shot clock runs. One button, one duration, no choices. */
+export const SHOT_CLOCK_SECONDS = 30;
 
 export interface DisplayHistoryPlayer {
   player_id: string;

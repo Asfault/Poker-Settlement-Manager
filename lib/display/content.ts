@@ -291,6 +291,131 @@ export function triggeredCards(d: Derived, now = Date.now()): Card[] {
 }
 
 /**
+ * Scale jokes.
+ *
+ * These work precisely because the comparison is ridiculous — the point is
+ * the number of zeroes between a home game in Bangalore and a televised
+ * final table, not any real equivalence.
+ *
+ * Figures are public career tournament earnings and are deliberately rounded
+ * and hedged ("over"), because they move every time these players cash. If
+ * they ever look badly stale, update them here — nothing else reads them.
+ */
+const PROS: { name: string; usd: number; note: string }[] = [
+  { name: "Daniel Negreanu", usd: 50_000_000, note: "in live tournaments" },
+  { name: "Bryn Kenney", usd: 60_000_000, note: "in live tournaments" },
+  { name: "Phil Ivey", usd: 40_000_000, note: "in live tournaments" },
+  { name: "Phil Hellmuth", usd: 30_000_000, note: "in live tournaments" },
+];
+
+/** Rough INR per USD. Only ever used for jokes, so precision is irrelevant. */
+const USD_INR = 85;
+/** What a decent biryani costs. The unit of account round here. */
+const BIRYANI_INR = 300;
+
+function comparisonCards(d: Derived): Card[] {
+  const out: Card[] = [];
+  const { group } = d;
+  const active = d.lifetime.filter((p) => p.isActive);
+
+  const leader = active[0];
+  if (leader && leader.totalProfitLoss > 0 && leader.sessions >= 3) {
+    for (const pro of PROS) {
+      const proInr = pro.usd * USD_INR;
+      const share = (leader.totalProfitLoss / proInr) * 100;
+      out.push({
+        id: `pro-${pro.name.replace(/\s+/g, "-").toLowerCase()}`,
+        kind: "fact",
+        title: "Nearly there",
+        body: `${pro.name} has won over $${Math.round(pro.usd / 1_000_000)}m ${pro.note}. ${leader.displayName} is up ${formatINR(leader.totalProfitLoss)}. That's ${share.toFixed(5)}% of the way.`,
+        tone: "gold",
+        photoUrl: leader.photoUrl,
+      });
+    }
+
+    // How long at their current rate.
+    if (leader.avgProfitLoss > 0) {
+      const nights = Math.round(
+        (PROS[0].usd * USD_INR) / leader.avgProfitLoss,
+      );
+      const years = Math.round(nights / 52);
+      out.push({
+        id: "pro-eta",
+        kind: "fact",
+        title: "Projected timeline",
+        body: `At ${formatINR(Math.round(leader.avgProfitLoss))} a night, ${leader.displayName} catches ${PROS[0].name} in ${years.toLocaleString("en-IN")} years. Assuming everyone keeps turning up.`,
+        tone: "gold",
+        photoUrl: leader.photoUrl,
+      });
+    }
+  }
+
+  // Losses, denominated in biryani.
+  for (const p of active) {
+    if (p.sessions < 3 || p.totalProfitLoss >= -BIRYANI_INR * 5) continue;
+    const biryanis = Math.round(Math.abs(p.totalProfitLoss) / BIRYANI_INR);
+    out.push({
+      id: `biryani-${p.playerId}`,
+      kind: "fact",
+      title: "In real terms",
+      body: `${p.displayName} is down ${formatINR(Math.abs(p.totalProfitLoss))} all time. That is ${biryanis} biryanis, handed to this table, for nothing.`,
+      tone: "loss",
+      photoUrl: p.photoUrl,
+    });
+  }
+
+  // Hourly rate against doing literally anything else.
+  for (const p of active) {
+    if (p.profitPerHour === null || p.sessions < 4) continue;
+    if (p.profitPerHour >= 0) continue;
+    out.push({
+      id: `wage-${p.playerId}`,
+      kind: "fact",
+      title: "Career advice",
+      body: `${p.displayName} loses ${formatINR(Math.abs(Math.round(p.profitPerHour)))} an hour here. You could pay someone minimum wage to lose it for you and still come out ahead.`,
+      tone: "loss",
+      photoUrl: p.photoUrl,
+    });
+  }
+
+  // Hours, in working weeks.
+  if (group.totalHoursPlayed >= 40) {
+    const days = (group.totalHoursPlayed / 8).toFixed(0);
+    out.push({
+      id: "hours-as-work",
+      kind: "fact",
+      title: "Time well spent",
+      body: `${Math.round(group.totalHoursPlayed)} hours have been played at this table. That is ${days} full working days. Nobody has been promoted.`,
+      tone: "neutral",
+    });
+  }
+
+  // The table's total churn, in biryani.
+  if (group.totalMoney > 0) {
+    out.push({
+      id: "table-biryani",
+      kind: "fact",
+      title: "Money across this table",
+      body: `${formatINR(group.totalMoney)} has moved around this table. ${Math.round(group.totalMoney / BIRYANI_INR).toLocaleString("en-IN")} biryanis. And you still order the same one.`,
+      tone: "gold",
+    });
+  }
+
+  // Bracelets.
+  if (group.sessions >= 10) {
+    out.push({
+      id: "bracelets",
+      kind: "fact",
+      title: "Hardware",
+      body: `Phil Hellmuth has won 17 WSOP bracelets. This table has played ${group.sessions} nights and won zero.`,
+      tone: "neutral",
+    });
+  }
+
+  return out;
+}
+
+/**
  * Milestones are facts about the whole night, not moments — "game number 50"
  * is as true at 2am as it was at 9pm. They live in filler rather than as
  * alerts, because an alert dated to session start would be discarded by
@@ -755,6 +880,9 @@ export function fillerCards(d: Derived, now = Date.now()): Card[] {
     }
   }
 
+  // ---------- Absurd comparisons ----------
+  out.push(...comparisonCards(d));
+
   // ---------- Comparisons ----------
 
   if (lifetime.length >= 3) {
@@ -1003,17 +1131,16 @@ export function pickFiller(
 }
 
 /**
- * Gap before the next filler card: 2m, 3m or 7m, averaging about 3 minutes.
+ * Gap before the next filler card: 1m, 2m or 4m, averaging about two.
  *
- * Deliberately slower than it looks like it should be. The pool is roughly 50
- * cards; at the old ~110s average every card showed twice a night and the
- * board felt repetitive by hour three. Buy-in notifications and triggered
- * alerts are what make it feel alive — filler is the quiet in between, and
- * the 7-minute option exists so the board genuinely rests.
+ * This was 2/3/7 when the pool was only ~44 cards and repetition was the
+ * problem. The pool is now ~65, so the constraint has gone and the slower
+ * gaps just made the board feel dead. The 4-minute option stays so it still
+ * gets an occasional rest.
  */
 export function nextGapMs(): number {
-  const options = [120_000, 180_000, 420_000];
-  const weights = [4, 3, 1];
+  const options = [60_000, 120_000, 240_000];
+  const weights = [4, 4, 2];
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
   for (let i = 0; i < options.length; i += 1) {

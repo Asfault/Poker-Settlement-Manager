@@ -12,6 +12,8 @@ export interface DbSession {
   house_fee_per_player: number;
   host_player_id: string | null;
   is_backfill: boolean;
+  /** Shot clock start, or null when none is running. See migration 012. */
+  clock_started_at?: string | null;
 }
 
 export interface DbBuyIn {
@@ -170,6 +172,26 @@ export async function setSessionStatus(
   const patch: Record<string, unknown> = { status };
   if (status === "complete") patch.ended_at = new Date().toISOString();
   const { error } = await supabase.from("sessions").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Start or stop the shot clock.
+ *
+ * Only the start time is written — the duration is a constant, and the
+ * display computes what's left against server time rather than its own,
+ * because a TV's clock is often wrong.
+ */
+export async function setShotClock(
+  sessionId: string,
+  running: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("sessions")
+    .update({
+      clock_started_at: running ? new Date().toISOString() : null,
+    })
+    .eq("id", sessionId);
   if (error) throw error;
 }
 

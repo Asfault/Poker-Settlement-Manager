@@ -124,6 +124,9 @@ export default function BuyInTicker({
       // Inline rather than Tailwind arbitrary values: these negative offsets
       // cancel the shell's 3vh/3vw padding so the strip runs edge to edge,
       // and they're too load-bearing to risk on class generation.
+      // Sits flush at the bottom, covering the ticker for its five seconds
+      // rather than covering the players. Negative offsets cancel the
+      // shell's 3vh/3vw padding so it runs edge to edge.
       style={{ left: "-3vw", right: "-3vw", bottom: "-3vh" }}
       aria-live="polite"
     >
