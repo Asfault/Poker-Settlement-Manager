@@ -61,11 +61,23 @@ function layout(rows: LiveRow[]): Seat[] {
   });
 }
 
+/**
+ * How large each seat block draws, by table size.
+ *
+ * Seven and eight players at 1.0 is the reference — that's the case tuned
+ * against the backdrop, and it sits correctly. Five and six were at 1.15,
+ * which made every block 15% taller without moving the seats any further
+ * apart: the front row's plates ran off the bottom of the screen and their
+ * artwork reached up over the plates behind. They now use the same 1.0.
+ *
+ * Four and under keeps 1.35 — with that few seats there's genuinely more
+ * room, and the table looks empty otherwise.
+ *
+ * Anything changed here must leave 7-player tables untouched.
+ */
 function seatScale(n: number): number {
   if (n <= 4) return 1.35;
-  if (n <= 6) return 1.15;
-  if (n <= 8) return 1;
-  return 0.82;
+  return n <= 8 ? 1 : 0.82;
 }
 
 export default function PokerTable({
