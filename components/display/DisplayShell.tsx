@@ -394,9 +394,6 @@ export default function DisplayShell({
 
   return (
     <div className="min-h-screen h-screen overflow-hidden relative p-[3vh_3vw]">
-      {/* Board is always mounted; overlays sit on top of it. The bottom
-          inset keeps the table clear of the ticker, so seats at the front
-          of the ellipse aren't sitting behind it. */}
       {/* Board is always mounted; overlays sit on top of it. Full height —
           the buy-in strip is a brief overlay rather than a permanent
           fixture, so nothing needs reserving at the bottom. */}
