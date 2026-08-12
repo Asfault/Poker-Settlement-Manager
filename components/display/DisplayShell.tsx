@@ -19,7 +19,6 @@ import {
 import { buildRecap } from "@/lib/display/recap";
 import LiveBoard from "./LiveBoard";
 import BuyInTicker from "./BuyInTicker";
-import Ticker, { SHELL_PAD_VH, TICKER_HEIGHT_VH } from "./Ticker";
 import ShotClock from "./ShotClock";
 import RecapPanels from "./RecapPanels";
 import ContentCard from "./ContentCard";
@@ -398,25 +397,15 @@ export default function DisplayShell({
       {/* Board is always mounted; overlays sit on top of it. The bottom
           inset keeps the table clear of the ticker, so seats at the front
           of the ellipse aren't sitting behind it. */}
-      {/* `relative` is load-bearing: PokerTable is `absolute inset-0`, so
-          without a positioned ancestor here it sizes against the shell root
-          and ignores this height entirely — which is exactly how the table
-          ended up underneath the ticker. */}
+      {/* Board is always mounted; overlays sit on top of it. Full height —
+          the buy-in strip is a brief overlay rather than a permanent
+          fixture, so nothing needs reserving at the bottom. */}
       <div
-        className="relative transition-opacity duration-500"
-        style={{
-          // The ticker runs flush to the screen edge, so the board reclaims
-          // the shell's bottom padding and only gives up the ticker itself.
-          height: `calc(100% + ${SHELL_PAD_VH}vh - ${TICKER_HEIGHT_VH}vh)`,
-          opacity: overlay ? 0.08 : 1,
-        }}
+        className="h-full transition-opacity duration-500"
+        style={{ opacity: overlay ? 0.08 : 1 }}
       >
         <LiveBoard derived={derived} now={now} />
       </div>
-
-      {/* Always moving, so the board is never completely still. Hidden
-          during the reveal, which owns the screen. */}
-      {!recap && <Ticker derived={derived} />}
 
       {/* Covers the beat between the session ending and history catching up,
           so the idle leaderboard doesn't flash before the reveal starts. */}

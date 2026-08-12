@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { DisplayLiveSession } from "@/lib/db/display";
 import { formatINR } from "@/lib/format";
-import { SHELL_PAD_VH, TICKER_HEIGHT_VH } from "./Ticker";
+
+/** Cancels the shell's padding so the strip runs to the screen edge. */
+const SHELL_PAD_VH = 3;
+const STRIP_HEIGHT_VH = 11;
 
 /**
  * The buy-in lower third.
@@ -135,14 +138,14 @@ export default function BuyInTicker({
       }}
       aria-live="polite"
     >
-      {/* Exactly the ticker's height, so it replaces the crawl rather than
-          eating into the board above it. Everything sits on one line. */}
+      {/* A brief overlay across the bottom of the board, not a permanent
+          fixture — the board keeps its full height underneath. */}
       <div
         className="flex items-center border-t-[0.3vh] border-gold-400"
         style={{
-          height: `${TICKER_HEIGHT_VH}vh`,
+          height: `${STRIP_HEIGHT_VH}vh`,
           gap: "1.2vw",
-          padding: "0 2vw",
+          padding: "0 3vw",
           background:
             "linear-gradient(90deg, rgba(10,15,12,.97) 0%, rgba(15,24,20,.93) 70%, rgba(15,24,20,.6) 100%)",
         }}
