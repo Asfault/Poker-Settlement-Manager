@@ -9,8 +9,8 @@
  */
 
 // Vertical centres of the two panels, as a fraction of the image height.
-const NAME_Y = 30;
-const AMOUNT_Y = 63;
+const NAME_Y = 32;
+const AMOUNT_Y = 60;
 /**
  * The buy-in chain sits in the gap between the two panels, just above the
  * amount. It's the one place with room to spare, and putting it here keeps

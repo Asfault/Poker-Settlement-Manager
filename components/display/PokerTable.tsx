@@ -60,7 +60,7 @@ const POT_Y = 54;
  * edge of the screen on the outermost seats.
  */
 const SIDE_PLATE_Y = 72;
-const SIDE_PLATE_INSET = 35;
+const SIDE_PLATE_INSET = 42;
 
 function layout(rows: LiveRow[]): Seat[] {
   const n = rows.length;
