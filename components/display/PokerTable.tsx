@@ -26,6 +26,19 @@ interface Seat {
   y: number;
   /** 0 at the back of the table, 1 at the front — drives depth. */
   depth: number;
+  /**
+   * Where this seat's nameplate goes. "under" is the normal stacked layout;
+   * "left"/"right" push it out to the side of the artwork instead.
+   *
+   * Only the upper-side seats of a six-player table use this. At six, the
+   * layout puts seats at top-centre, upper-right, lower-right, bottom-centre,
+   * lower-left and upper-left — so the two upper-side seats are the only
+   * ones with another player directly beneath them on the same side, whose
+   * artwork lands squarely on their plate. Seven players spread the seats
+   * differently and don't have the problem, so this deliberately does not
+   * apply there.
+   */
+  plate: "under" | "left" | "right";
 }
 
 // Tuned against the backdrop art: centre and radii of its table oval.
@@ -37,6 +50,17 @@ const RY = 29;
 // Where the pot sits on the felt.
 const POT_X = 50;
 const POT_Y = 54;
+
+/**
+ * Side-plate placement, as percentages of the seat's own box.
+ *
+ * Y is low on the artwork so the plate reads as belonging to that player
+ * rather than floating beside their head. The inset overlaps the artwork
+ * deliberately — stepping a full width clear would push the plate off the
+ * edge of the screen on the outermost seats.
+ */
+const SIDE_PLATE_Y = 72;
+const SIDE_PLATE_INSET = 35;
 
 function layout(rows: LiveRow[]): Seat[] {
   const n = rows.length;
@@ -51,13 +75,21 @@ function layout(rows: LiveRow[]): Seat[] {
   return ordered.map((row, i) => {
     const angle = (-90 + (360 / n) * i) * (Math.PI / 180);
     const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
     return {
       row,
-      x: CX + RX * Math.cos(angle),
+      x: CX + RX * cos,
       y: CY + RY * sin,
       // -1 at the back, +1 at the front.
       depth: (sin + 1) / 2,
-    };
+      // At six, indices 1 and 5 are the upper-right and upper-left seats.
+      plate:
+        n === 6 && (i === 1 || i === 5)
+          ? cos > 0
+            ? "right"
+            : "left"
+          : "under",
+    } satisfies Seat;
   });
 }
 
@@ -178,7 +210,7 @@ export default function PokerTable({
       </div>
 
       {/* Seats */}
-      {seats.map(({ row, x, y, depth }) => {
+      {seats.map(({ row, x, y, depth, plate }) => {
         // Players at the front of the table read slightly larger.
         const depthScale = scale * (0.9 + depth * 0.2);
         return (
@@ -264,18 +296,49 @@ export default function PokerTable({
             <div className="relative">
               {/* Buy-in history goes inside the plate, just above the
                   amount — hidden on a single buy-in, where it'd only
-                  repeat the total. */}
-              <NamePlate
-                name={row.displayName}
-                amount={formatINR(row.totalBuyIn)}
-                history={
-                  row.buyIns.length >= 2
-                    ? buyInChain(row.buyIns.map((b) => b.amount))
-                    : undefined
-                }
-                scale={depthScale}
-                highlight={row.isHost}
-              />
+                  repeat the total.
+
+                  Side plates are absolutely positioned so they sit beside
+                  the artwork instead of under it, out of the path of the
+                  player below. 35% of the seat's own width keeps them on
+                  screen — a full step outside would run off the edge. */}
+              {plate === "under" ? (
+                <NamePlate
+                  name={row.displayName}
+                  amount={formatINR(row.totalBuyIn)}
+                  history={
+                    row.buyIns.length >= 2
+                      ? buyInChain(row.buyIns.map((b) => b.amount))
+                      : undefined
+                  }
+                  scale={depthScale}
+                  highlight={row.isHost}
+                />
+              ) : (
+                <div
+                  className="absolute"
+                  style={{
+                    top: `${SIDE_PLATE_Y}%`,
+                    [plate === "right" ? "left" : "right"]:
+                      `${SIDE_PLATE_INSET}%`,
+                    transform: "translateY(-50%)",
+                    width: `${16.5 * depthScale}vw`,
+                  }}
+                >
+                  <NamePlate
+                    name={row.displayName}
+                    amount={formatINR(row.totalBuyIn)}
+                    history={
+                      row.buyIns.length >= 2
+                        ? buyInChain(row.buyIns.map((b) => b.amount))
+                        : undefined
+                    }
+                    scale={depthScale}
+                    highlight={row.isHost}
+                    attached={false}
+                  />
+                </div>
+              )}
             </div>
           </div>
         );

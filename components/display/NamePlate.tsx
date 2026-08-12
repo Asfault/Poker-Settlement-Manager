@@ -26,6 +26,12 @@ export default function NamePlate({
   /** Multiplier applied to width and type size. */
   scale = 1,
   highlight = false,
+  /**
+   * False when the plate is placed beside the artwork rather than under it.
+   * The negative top margin exists to ride up over the bottom of a character
+   * standing above it, and makes no sense off to one side.
+   */
+  attached = true,
 }: {
   name: string;
   amount: string;
@@ -33,6 +39,7 @@ export default function NamePlate({
   history?: string;
   scale?: number;
   highlight?: boolean;
+  attached?: boolean;
 }) {
   return (
     <div
@@ -41,7 +48,7 @@ export default function NamePlate({
         width: `${16.5 * scale}vw`,
         aspectRatio: "3 / 2",
         // Rides up over the bottom of the character art.
-        marginTop: `${-2.4 * scale}vw`,
+        marginTop: attached ? `${-2.4 * scale}vw` : 0,
         filter: highlight
           ? "drop-shadow(0 0 0.9vw rgba(255,214,140,0.55)) drop-shadow(0 0.5vh 1.2vh rgba(0,0,0,0.7))"
           : "drop-shadow(0 0.5vh 1.2vh rgba(0,0,0,0.7))",
