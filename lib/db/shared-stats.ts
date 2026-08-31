@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { SessionSummary, mapSessionRows } from "@/lib/db/stats";
+import type { SeasonMeta } from "@/lib/stats/season";
 
 /**
  * Public read-only stats, shared at pokeresh.com/<slug>.
@@ -95,6 +96,10 @@ export async function sharedSlugExists(slug: string): Promise<boolean> {
 export interface SharedStatsResult {
   ok: boolean;
   sessions: SessionSummary[];
+  /** Epoch ms. Sessions before this belong to no season. */
+  seasonsStartFrom: number | null;
+  seasonMeta: SeasonMeta[];
+  seasonExclusions: { seasonId: string; playerId: string }[];
 }
 
 export async function fetchSharedStats(
@@ -107,8 +112,28 @@ export async function fetchSharedStats(
   });
   if (error) throw error;
 
-  const payload = data as { ok?: boolean; sessions?: unknown[] } | null;
-  if (!payload || payload.ok !== true) return { ok: false, sessions: [] };
+  const payload = data as {
+    ok?: boolean;
+    sessions?: unknown[];
+    seasons_start_from?: string | null;
+    season_meta?: {
+      season_id: string;
+      custom_name: string | null;
+      note: string | null;
+      no_winner: boolean;
+    }[];
+    season_exclusions?: { season_id: string; player_id: string }[];
+  } | null;
+
+  if (!payload || payload.ok !== true) {
+    return {
+      ok: false,
+      sessions: [],
+      seasonsStartFrom: null,
+      seasonMeta: [],
+      seasonExclusions: [],
+    };
+  }
 
   return {
     ok: true,
@@ -117,6 +142,19 @@ export async function fetchSharedStats(
     sessions: mapSessionRows(payload.sessions ?? []).sort(
       (a, b) => b.startedAt - a.startedAt,
     ),
+    seasonsStartFrom: payload.seasons_start_from
+      ? new Date(payload.seasons_start_from).getTime()
+      : null,
+    seasonMeta: (payload.season_meta ?? []).map((m) => ({
+      seasonId: m.season_id,
+      customName: m.custom_name,
+      note: m.note,
+      noWinner: m.no_winner,
+    })),
+    seasonExclusions: (payload.season_exclusions ?? []).map((e) => ({
+      seasonId: e.season_id,
+      playerId: e.player_id,
+    })),
   };
 }
 

@@ -98,35 +98,42 @@ export default function HostTally({
         </p>
 
         <Card className="overflow-hidden mb-4">
-          <table className="w-full">
+          {/* table-fixed with explicit widths: without it the chip input
+              sets its own column width and the table pushes past the
+              viewport on a smaller phone. Padding tightens below sm. */}
+          <table className="w-full table-fixed">
             <thead>
-              <tr className="bg-felt-700/60 text-xs uppercase tracking-wide text-white/60">
-                <th className="text-left py-3 px-4">Player</th>
-                <th className="text-right py-3 px-3">Buy-ins</th>
-                <th className="text-right py-3 px-4">Chips left</th>
+              <tr className="bg-felt-700/60 text-[10px] sm:text-xs uppercase tracking-wide text-white/60">
+                <th className="text-left py-3 pl-3 pr-1 sm:px-4">Player</th>
+                <th className="text-right py-3 px-1 sm:px-3 w-[26%]">
+                  Buy-ins
+                </th>
+                <th className="text-right py-3 pl-1 pr-3 sm:px-4 w-[38%]">
+                  Chips left
+                </th>
               </tr>
             </thead>
             <tbody>
               {players.map((p) => (
                 <tr key={p.id} className="border-t border-white/5">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  <td className="py-3 pl-3 pr-1 sm:px-4">
+                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
                       <PlayerAvatar
                         name={p.display_name}
                         photoUrl={p.photo_url}
                         size={32}
                       />
-                      <span className="font-medium truncate">
+                      <span className="font-medium truncate text-sm sm:text-base">
                         {p.display_name}
                       </span>
                     </div>
                   </td>
-                  <td className="py-3 px-3 text-right tabular-nums text-gold-400">
+                  <td className="py-3 px-1 sm:px-3 text-right tabular-nums whitespace-nowrap text-sm sm:text-base text-gold-400">
                     {formatINR(sumBuyIns(p))}
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-3 pl-1 pr-3 sm:px-4">
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40">
+                      <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-white/40">
                         ₹
                       </span>
                       <input
@@ -140,7 +147,9 @@ export default function HostTally({
                         }}
                         onBlur={() => persist(p.id)}
                         placeholder="0"
-                        className="w-32 ml-auto block bg-felt-900 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-right text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500 tabular-nums"
+                        // Fills its column rather than claiming a fixed 8rem,
+                        // which is what pushed the table off a small screen.
+                        className="w-full max-w-[8rem] ml-auto block bg-felt-900 border border-white/10 rounded-lg pl-6 sm:pl-7 pr-2 sm:pr-3 py-2 text-right text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500 tabular-nums"
                       />
                     </div>
                   </td>
@@ -149,12 +158,14 @@ export default function HostTally({
             </tbody>
             <tfoot>
               <tr className="border-t border-white/10 bg-felt-700/40">
-                <td className="py-3 px-4 font-semibold">Totals</td>
-                <td className="py-3 px-3 text-right font-semibold tabular-nums text-gold-400">
+                <td className="py-3 pl-3 pr-1 sm:px-4 font-semibold text-sm sm:text-base">
+                  Totals
+                </td>
+                <td className="py-3 px-1 sm:px-3 text-right font-semibold tabular-nums whitespace-nowrap text-sm sm:text-base text-gold-400">
                   {formatINR(totals.buy)}
                 </td>
                 <td
-                  className={`py-3 px-4 text-right font-semibold tabular-nums ${
+                  className={`py-3 pl-1 pr-3 sm:px-4 text-right font-semibold tabular-nums whitespace-nowrap text-sm sm:text-base ${
                     !allFilled
                       ? "text-white/60"
                       : totals.chips === totals.buy

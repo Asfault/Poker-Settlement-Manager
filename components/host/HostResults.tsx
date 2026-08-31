@@ -238,27 +238,39 @@ export default function HostResults({
           <div className="px-4 py-2.5 bg-felt-700/60 text-xs uppercase tracking-wide text-white/60">
             Poker profit / loss
           </div>
-          <table className="w-full">
+          {/* Same treatment as the breakdown table below — fixed columns and
+              tighter spacing under sm, so it fits a small phone. */}
+          <table className="w-full table-fixed text-sm sm:text-base">
             <thead>
-              <tr className="text-xs uppercase tracking-wide text-white/45 border-b border-white/5">
-                <th className="text-left py-2 px-4 font-medium">Player</th>
-                <th className="text-right py-2 px-3 font-medium">Buy-ins</th>
-                <th className="text-right py-2 px-3 font-medium">Chips</th>
-                <th className="text-right py-2 px-4 font-medium">P/L</th>
+              <tr className="text-[10px] sm:text-xs uppercase tracking-wide text-white/45 border-b border-white/5">
+                <th className="text-left py-2 pl-3 pr-1 sm:px-4 font-medium">
+                  Player
+                </th>
+                <th className="text-right py-2 px-1 sm:px-3 font-medium w-[24%]">
+                  Buy-ins
+                </th>
+                <th className="text-right py-2 px-1 sm:px-3 font-medium w-[24%]">
+                  Chips
+                </th>
+                <th className="text-right py-2 pl-1 pr-3 sm:px-4 font-medium w-[24%]">
+                  P/L
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.playerId} className="border-t border-white/5">
-                  <td className="py-3 px-4 font-medium truncate">{r.name}</td>
-                  <td className="py-3 px-3 text-right tabular-nums text-gold-400">
+                  <td className="py-3 pl-3 pr-1 sm:px-4 font-medium truncate">
+                    {r.name}
+                  </td>
+                  <td className="py-3 px-1 sm:px-3 text-right tabular-nums whitespace-nowrap text-gold-400">
                     {formatINR(r.totalBuyIn)}
                   </td>
-                  <td className="py-3 px-3 text-right tabular-nums">
+                  <td className="py-3 px-1 sm:px-3 text-right tabular-nums whitespace-nowrap">
                     {formatINR(r.chipsLeft)}
                   </td>
                   <td
-                    className={`py-3 px-4 text-right tabular-nums font-bold ${
+                    className={`py-3 pl-1 pr-3 sm:px-4 text-right tabular-nums whitespace-nowrap font-bold ${
                       r.profitLoss > 0
                         ? "text-win"
                         : r.profitLoss < 0
@@ -409,13 +421,16 @@ export default function HostResults({
               {settlements.map((s, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-3 py-2 border-b border-white/5 last:border-b-0"
+                  className="flex items-center gap-2 sm:gap-3 py-2 border-b border-white/5 last:border-b-0 min-w-0"
                 >
-                  <span className="text-loss font-semibold truncate">
+                  {/* min-w-0 on the names is what lets truncate actually
+                      fire — without it a long pair pushes the amount off
+                      the right edge on a narrow screen. */}
+                  <span className="text-loss font-semibold truncate min-w-0">
                     {s.from}
                   </span>
                   <span className="text-white/40 text-sm shrink-0">pays</span>
-                  <span className="text-win font-semibold truncate">
+                  <span className="text-win font-semibold truncate min-w-0">
                     {s.to}
                   </span>
                   <span className="ml-auto text-gold-400 font-bold tabular-nums shrink-0">
