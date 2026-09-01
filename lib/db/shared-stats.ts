@@ -93,9 +93,17 @@ export async function sharedSlugExists(slug: string): Promise<boolean> {
   return data === true;
 }
 
+export interface RosterEntry {
+  playerId: string;
+  name: string;
+  photoUrl: string | null;
+}
+
 export interface SharedStatsResult {
   ok: boolean;
   sessions: SessionSummary[];
+  /** Active players. Lets a season with no games yet still show a table. */
+  roster: RosterEntry[];
   /** Epoch ms. Sessions before this belong to no season. */
   seasonsStartFrom: number | null;
   seasonMeta: SeasonMeta[];
@@ -115,6 +123,7 @@ export async function fetchSharedStats(
   const payload = data as {
     ok?: boolean;
     sessions?: unknown[];
+    roster?: { player_id: string; name: string; photo_url: string | null }[];
     seasons_start_from?: string | null;
     season_meta?: {
       season_id: string;
@@ -129,6 +138,7 @@ export async function fetchSharedStats(
     return {
       ok: false,
       sessions: [],
+      roster: [],
       seasonsStartFrom: null,
       seasonMeta: [],
       seasonExclusions: [],
@@ -142,6 +152,11 @@ export async function fetchSharedStats(
     sessions: mapSessionRows(payload.sessions ?? []).sort(
       (a, b) => b.startedAt - a.startedAt,
     ),
+    roster: (payload.roster ?? []).map((r) => ({
+      playerId: r.player_id,
+      name: r.name,
+      photoUrl: r.photo_url,
+    })),
     seasonsStartFrom: payload.seasons_start_from
       ? new Date(payload.seasons_start_from).getTime()
       : null,

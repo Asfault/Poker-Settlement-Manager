@@ -7,7 +7,7 @@ import StatsView from "@/components/stats/StatsView";
 import SharedFrame from "@/components/stats/SharedFrame";
 import SeasonHeader from "@/components/stats/SeasonHeader";
 import HallOfFame from "@/components/stats/HallOfFame";
-import Card from "@/components/Card";
+import SeasonOpeningBoard from "@/components/stats/SeasonOpeningBoard";
 
 /**
  * Public read-only stats at pokeresh.com/<slug>.
@@ -45,12 +45,7 @@ export default function SharedStatsPage() {
       <HallOfFame entries={shared.hallOfFame} />
 
       {shared.awaitingFirstGame ? (
-        <Card className="p-8 text-center">
-          <p className="text-white/50 text-sm">
-            No games played yet. The season&apos;s stats appear here after the
-            first night.
-          </p>
-        </Card>
+        <SeasonOpeningBoard roster={shared.roster} />
       ) : (
         <>
           <StatsView

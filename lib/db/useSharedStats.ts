@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SessionSummary } from "@/lib/db/stats";
 import {
+  RosterEntry,
   fetchSharedStats,
   forgetSharePassword,
   rememberSharePassword,
@@ -44,6 +45,8 @@ export interface SharedStats {
   /** False when showing the last completed season during an off-season. */
   isCurrentSeason: boolean;
   hallOfFame: HallOfFameEntry[];
+  /** Active players, so a season with no games yet still shows a table. */
+  roster: RosterEntry[];
   /** True once seasons are switched on but no games have been played yet. */
   awaitingFirstGame: boolean;
   unlock: (password: string) => Promise<boolean>;
@@ -52,6 +55,7 @@ export interface SharedStats {
 export function useSharedStats(slug: string): SharedStats {
   const [state, setState] = useState<SharedState>("checking");
   const [all, setAll] = useState<SessionSummary[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [startFrom, setStartFrom] = useState<number | null>(null);
   const [meta, setMeta] = useState<SeasonMeta[]>([]);
   const [exclusions, setExclusions] = useState<
@@ -63,6 +67,7 @@ export function useSharedStats(slug: string): SharedStats {
       const result = await fetchSharedStats(slug, password);
       if (!result.ok) return false;
       setAll(result.sessions);
+      setRoster(result.roster);
       setStartFrom(result.seasonsStartFrom);
       setMeta(result.seasonMeta);
       setExclusions(result.seasonExclusions);
@@ -143,7 +148,8 @@ export function useSharedStats(slug: string): SharedStats {
     seasonResult: scoped.result,
     isCurrentSeason: scoped.isCurrent,
     hallOfFame,
-    awaitingFirstGame: state === "ready" && scoped.season === null,
+    roster,
+    awaitingFirstGame: state === "ready" && scoped.sessions.length === 0,
     unlock: async (password: string) => {
       const ok = await apply(password);
       if (ok) rememberSharePassword(slug, password);
