@@ -39,22 +39,64 @@ function signed(n: number) {
   return `${n > 0 ? "+" : ""}${formatINR(n)}`;
 }
 
+/**
+ * A player with a completely empty record.
+ *
+ * Used at the start of a season, when there are no sessions to compute from
+ * but the page should still show the shape of the thing — every field that
+ * will be there in a week, all reading zero. That's a season about to
+ * happen; an empty page is just an empty page.
+ */
+function zeroedPlayer(p: {
+  playerId: string;
+  name: string;
+  photoUrl: string | null;
+}): PlayerStats {
+  return {
+    playerId: p.playerId,
+    name: p.name,
+    photoUrl: p.photoUrl,
+    isActive: true,
+    sessions: 0,
+    totalBuyIn: 0,
+    totalChips: 0,
+    totalProfitLoss: 0,
+    wins: 0,
+    losses: 0,
+    evens: 0,
+    winRate: 0,
+    biggestWin: 0,
+    biggestLoss: 0,
+    avgProfitLoss: 0,
+    totalBuyInCount: 0,
+    lastPlayed: null,
+    recentForm: [],
+  };
+}
+
 export default function StatsView({
   sessions,
   playerHref,
+  roster,
 }: {
   sessions: SessionSummary[];
   playerHref: (playerId: string) => string;
+  /**
+   * Active players, used only when there are no sessions yet. Everything
+   * renders as normal with zeroes rather than falling back to a message.
+   */
+  roster?: { playerId: string; name: string; photoUrl: string | null }[];
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   // Archived players stay in every historical total — they're just hidden from
   // the leaderboard by default so it reflects who currently plays.
   const [showArchived, setShowArchived] = useState(false);
 
-  const allPlayers: PlayerStats[] = useMemo(
-    () => computePlayerStats(sessions),
-    [sessions],
-  );
+  const allPlayers: PlayerStats[] = useMemo(() => {
+    const computed = computePlayerStats(sessions);
+    if (computed.length > 0 || !roster || roster.length === 0) return computed;
+    return roster.map(zeroedPlayer);
+  }, [sessions, roster]);
   const group: GroupStats = useMemo(
     () => computeGroupStats(sessions),
     [sessions],
@@ -92,7 +134,8 @@ export default function StatsView({
     return WEEKDAYS[group.byWeekday.indexOf(max)];
   }, [group.byWeekday]);
 
-  if (sessions.length === 0) {
+  // Only when there's nothing at all — no games and no roster to zero out.
+  if (sessions.length === 0 && allPlayers.length === 0) {
     return (
       <Card className="p-8 text-center">
         <p className="text-white/50 text-sm">
@@ -137,29 +180,29 @@ export default function StatsView({
         )}
       </div>
 
+      {/* Placeholders rather than omissions when there's nothing yet — the
+          page should show the shape of the season, not shrink to fit. */}
       <Card className="p-4 mb-5 text-sm text-white/60 flex flex-wrap gap-x-6 gap-y-1">
-        {busiestDay && (
-          <span>
-            Most common night:{" "}
-            <span className="text-white font-medium">{busiestDay}</span>
+        <span>
+          Most common night:{" "}
+          <span className="text-white font-medium">{busiestDay ?? "—"}</span>
+        </span>
+        <span>
+          Average length:{" "}
+          <span className="text-white font-medium">
+            {group.avgDurationMs !== null
+              ? formatDuration(0, group.avgDurationMs)
+              : "—"}
           </span>
-        )}
-        {group.avgDurationMs !== null && (
-          <span>
-            Average length:{" "}
-            <span className="text-white font-medium">
-              {formatDuration(0, group.avgDurationMs)}
-            </span>
+        </span>
+        <span>
+          Since{" "}
+          <span className="text-white font-medium">
+            {group.firstSession
+              ? formatDateTime(group.firstSession).split(",")[0]
+              : "—"}
           </span>
-        )}
-        {group.firstSession && (
-          <span>
-            Since{" "}
-            <span className="text-white font-medium">
-              {formatDateTime(group.firstSession).split(",")[0]}
-            </span>
-          </span>
-        )}
+        </span>
       </Card>
 
       {/* Hall of fame */}
@@ -167,41 +210,49 @@ export default function StatsView({
         Records
       </h2>
       <Card className="p-4 mb-5 flex flex-col gap-3">
-        {records.biggestWin && records.biggestWin.amount > 0 && (
-          <RecordRow
-            label="Biggest night"
-            who={records.biggestWin.name}
-            value={signed(records.biggestWin.amount)}
-            at={records.biggestWin.at}
-            tone="win"
-          />
-        )}
-        {records.biggestLoss && records.biggestLoss.amount < 0 && (
-          <RecordRow
-            label="Worst night"
-            who={records.biggestLoss.name}
-            value={formatINR(records.biggestLoss.amount)}
-            at={records.biggestLoss.at}
-            tone="loss"
-          />
-        )}
-        {records.mostBuyIns && records.mostBuyIns.amount > 1 && (
-          <RecordRow
-            label="Most buy-ins"
-            who={records.mostBuyIns.name}
-            value={`${records.mostBuyIns.amount} in a night`}
-            at={records.mostBuyIns.at}
-            tone="loss"
-          />
-        )}
-        {records.longestSession && (
-          <RecordRow
-            label="Longest session"
-            who="The whole table"
-            value={formatDuration(0, records.longestSession.ms)}
-            at={records.longestSession.at}
-          />
-        )}
+        <RecordRow
+          label="Biggest night"
+          who={records.biggestWin?.name ?? "—"}
+          value={
+            records.biggestWin && records.biggestWin.amount > 0
+              ? signed(records.biggestWin.amount)
+              : formatINR(0)
+          }
+          at={records.biggestWin?.at ?? null}
+          tone="win"
+        />
+        <RecordRow
+          label="Worst night"
+          who={records.biggestLoss?.name ?? "—"}
+          value={
+            records.biggestLoss && records.biggestLoss.amount < 0
+              ? formatINR(records.biggestLoss.amount)
+              : formatINR(0)
+          }
+          at={records.biggestLoss?.at ?? null}
+          tone="loss"
+        />
+        <RecordRow
+          label="Most buy-ins"
+          who={records.mostBuyIns?.name ?? "—"}
+          value={
+            records.mostBuyIns && records.mostBuyIns.amount > 1
+              ? `${records.mostBuyIns.amount} in a night`
+              : "—"
+          }
+          at={records.mostBuyIns?.at ?? null}
+          tone="loss"
+        />
+        <RecordRow
+          label="Longest session"
+          who={records.longestSession ? "The whole table" : "—"}
+          value={
+            records.longestSession
+              ? formatDuration(0, records.longestSession.ms)
+              : "—"
+          }
+          at={records.longestSession?.at ?? null}
+        />
       </Card>
 
       {/* Charts */}
@@ -496,7 +547,8 @@ function RecordRow({
   label: string;
   who: string;
   value: string;
-  at: number;
+  /** Null before anything's been played — the row still shows, dateless. */
+  at: number | null;
   tone?: "win" | "loss";
 }) {
   return (
@@ -518,7 +570,7 @@ function RecordRow({
           {value}
         </div>
         <div className="text-white/30 text-xs">
-          {formatDateTime(at).split(",")[0]}
+          {at === null ? "—" : formatDateTime(at).split(",")[0]}
         </div>
       </div>
     </div>

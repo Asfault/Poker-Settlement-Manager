@@ -228,22 +228,25 @@ export function seasonsWithGames(
 }
 
 /**
- * The season to show on the shared page: the one running now if it has
- * games, otherwise the most recent one that does. So an off-season shows
- * the last completed season's final standings rather than a blank page.
+ * The season to show on the shared page: whichever one is running now.
+ *
+ * Always the current season, even before it has any games — that's the
+ * "Welcome to Autumn" state, and it's the whole point of having an opening
+ * phase. An earlier version fell back to the last season with games, which
+ * was left over from a design where seasons were started by hand and gaps
+ * between them were real. With fixed windows every moment belongs to a
+ * season, so there's nothing to fall back to.
+ *
+ * Null only when seasons haven't been switched on, or we're still before
+ * the date they begin.
  */
 export function seasonToShow(
   sessions: SessionSummary[],
   startFrom: number | null,
   now: number,
 ): { season: Season; isCurrent: boolean } | null {
-  const current = seasonOf(now);
-  const played = seasonsWithGames(sessions, startFrom);
-  if (played.some((s) => s.id === current.id)) {
-    return { season: current, isCurrent: true };
-  }
-  if (played.length === 0) return null;
-  return { season: played[0], isCurrent: false };
+  if (startFrom === null || now < startFrom) return null;
+  return { season: seasonOf(now), isCurrent: true };
 }
 
 // ---------- The award ----------
