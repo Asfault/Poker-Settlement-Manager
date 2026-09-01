@@ -37,6 +37,7 @@ export default function SharedStatsPage() {
           label={shared.seasonLabel}
           note={shared.seasonNote}
           isCurrent={shared.isCurrentSeason}
+          welcome
         />
       )}
 

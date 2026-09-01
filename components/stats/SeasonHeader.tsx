@@ -1,7 +1,12 @@
 "use client";
 
 import type { SeasonResult } from "@/lib/stats/season";
-import { SEASON_ACCENT, seasonRangeLabel } from "@/lib/stats/season";
+import {
+  SEASON_ACCENT,
+  seasonGreeting,
+  seasonPhase,
+  seasonRangeLabel,
+} from "@/lib/stats/season";
 import { formatINR } from "@/lib/format";
 import Card from "@/components/Card";
 import PlayerAvatar from "@/components/host/PlayerAvatar";
@@ -18,15 +23,25 @@ export default function SeasonHeader({
   label,
   note,
   isCurrent,
+  welcome = false,
 }: {
   result: SeasonResult;
   label: string;
   note: string | null;
   /** False when showing the last completed season during an off-season. */
   isCurrent: boolean;
+  /**
+   * Shared page only. Adds the greeting and gives the card more weight at
+   * the start and end of a season. The host doesn't need welcoming to
+   * their own app.
+   */
+  welcome?: boolean;
 }) {
   const accent = SEASON_ACCENT[result.season.name];
   const { winner, tied, gameCount, noEligiblePlayers } = result;
+
+  const phase = seasonPhase(result.season, gameCount, isCurrent, Date.now());
+  const greeting = welcome ? seasonGreeting(result.season, phase) : null;
 
   return (
     <Card
@@ -39,21 +54,54 @@ export default function SeasonHeader({
         style={{ background: accent }}
       />
 
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <div className="min-w-0">
-          <div
-            className="text-xs uppercase tracking-[0.2em] font-semibold"
-            style={{ color: accent }}
-          >
-            {isCurrent ? "This season" : "Last season"}
+      {/* A soft pool of the season's colour behind the title. CSS only —
+          no per-season artwork to make or maintain. */}
+      {greeting && (
+        <div
+          aria-hidden="true"
+          className="absolute pointer-events-none"
+          style={{
+            left: "-10%",
+            top: "-60%",
+            width: "70%",
+            height: "180%",
+            background: `radial-gradient(ellipse at 40% 50%, ${accent}22, transparent 70%)`,
+          }}
+        />
+      )}
+
+      <div className="relative">
+        {greeting && (
+          <div className="mb-4">
+            <h2
+              className="font-bold leading-tight text-[clamp(26px,7vw,40px)]"
+              style={{ color: accent }}
+            >
+              {greeting.title}
+            </h2>
+            <p className="text-white/55 text-sm mt-1.5">{greeting.subtitle}</p>
           </div>
-          <h2 className="text-2xl font-bold truncate">{label}</h2>
-          <p className="text-white/40 text-xs mt-0.5">
-            {seasonRangeLabel(result.season)} · {gameCount} night
-            {gameCount === 1 ? "" : "s"}
-          </p>
+        )}
+
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div className="min-w-0">
+            <div
+              className="text-xs uppercase tracking-[0.2em] font-semibold"
+              style={{ color: accent }}
+            >
+              {isCurrent ? "This season" : "Last season"}
+            </div>
+            <h3
+              className={`font-bold truncate ${greeting ? "text-lg" : "text-2xl"}`}
+            >
+              {label}
+            </h3>
+            <p className="text-white/40 text-xs mt-0.5">
+              {seasonRangeLabel(result.season)} · {gameCount} night
+              {gameCount === 1 ? "" : "s"}
+            </p>
+          </div>
         </div>
-      </div>
 
       {note && (
         <p className="text-white/60 text-sm mt-3 border-l-2 pl-3" style={{ borderColor: accent }}>
@@ -97,6 +145,7 @@ export default function SeasonHeader({
           </p>
         )
       )}
+      </div>
     </Card>
   );
 }

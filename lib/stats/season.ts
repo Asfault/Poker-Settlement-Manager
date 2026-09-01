@@ -95,6 +95,79 @@ export function seasonLabel(season: Season, customName?: string | null): string 
   return `${LABELS[season.name]} ${season.year}`;
 }
 
+/** Just the season word — "Autumn". The greeting uses this rather than a
+ *  custom name, so "Welcome to Autumn" still reads even when the season has
+ *  been renamed to something else. */
+export function seasonWord(name: SeasonName): string {
+  return LABELS[name];
+}
+
+/**
+ * Where a season is in its life. The shared page's banner changes with it:
+ * big and welcoming before the first game, compact once there are stats
+ * worth reading, and loud again at the end when the standings start to
+ * matter. A hero that never changes is wallpaper by week eight.
+ */
+export type SeasonPhase = "opening" | "running" | "closing" | "finished";
+
+/** How long before the end a season counts as closing. */
+const CLOSING_MS = 21 * 86400000;
+
+export function seasonPhase(
+  season: Season,
+  gameCount: number,
+  isCurrent: boolean,
+  now: number,
+): SeasonPhase {
+  if (!isCurrent || now >= season.endsAt) return "finished";
+  if (gameCount === 0) return "opening";
+  return season.endsAt - now <= CLOSING_MS ? "closing" : "running";
+}
+
+/**
+ * Banner copy. Null while a season is simply running — at that point the
+ * stats are the point and the header should get out of the way.
+ */
+export function seasonGreeting(
+  season: Season,
+  phase: SeasonPhase,
+): { title: string; subtitle: string } | null {
+  const word = seasonWord(season.name);
+
+  if (phase === "opening") {
+    const subtitles: Record<SeasonName, string> = {
+      winter: "Long nights, short tempers, and nobody down a rupee yet.",
+      summer: "Too hot to fold. Nobody has lost anything so far.",
+      monsoon: "Nobody's going home early. Everyone still level.",
+      autumn: "New season, clean slate, same mistakes ahead.",
+    };
+    return {
+      title: `Welcome to ${word}`,
+      subtitle: subtitles[season.name],
+    };
+  }
+
+  if (phase === "closing") {
+    const end = new Date(season.endsAt - 86400000).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+    });
+    return {
+      title: `${word} ends ${end}`,
+      subtitle: "Whatever's on the table now is close to final.",
+    };
+  }
+
+  if (phase === "finished") {
+    return {
+      title: `That's ${word} done`,
+      subtitle: "Final standings below. The next one starts from nothing.",
+    };
+  }
+
+  return null;
+}
+
 /** "1 Sep – 30 Nov 2026", for the season header. */
 export function seasonRangeLabel(season: Season): string {
   const start = new Date(season.startsAt);

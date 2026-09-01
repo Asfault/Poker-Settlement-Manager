@@ -363,5 +363,51 @@ console.log("\nThe award");
   check("and no games", computeSeasonResult(season, []).gameCount, 0);
 }
 
+// ---------- banner phases ----------
+
+const CLOSING_MS = 21 * 86400000;
+
+function seasonPhase(season, gameCount, isCurrent, now) {
+  if (!isCurrent || now >= season.endsAt) return "finished";
+  if (gameCount === 0) return "opening";
+  return season.endsAt - now <= CLOSING_MS ? "closing" : "running";
+}
+
+console.log("\nBanner phases");
+{
+  const autumn = seasonOf(at(2026, 9, 15));
+
+  check(
+    "no games yet is the opening",
+    seasonPhase(autumn, 0, true, at(2026, 9, 2)),
+    "opening",
+  );
+  check(
+    "games played mid-season is just running",
+    seasonPhase(autumn, 4, true, at(2026, 10, 1)),
+    "running",
+  );
+  check(
+    "the last three weeks are the closing",
+    seasonPhase(autumn, 8, true, at(2026, 11, 20)),
+    "closing",
+  );
+  check(
+    "past the end is finished",
+    seasonPhase(autumn, 10, true, at(2026, 12, 5)),
+    "finished",
+  );
+  check(
+    "an older season shown during an off-season is finished",
+    seasonPhase(autumn, 10, false, at(2026, 10, 1)),
+    "finished",
+  );
+  check(
+    "an empty season in its closing weeks still reads as opening",
+    seasonPhase(autumn, 0, true, at(2026, 11, 25)),
+    "opening",
+  );
+}
+
 console.log(`\n${pass} passed, ${fail} failed.\n`);
 if (fail > 0) process.exit(1);
