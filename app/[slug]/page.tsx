@@ -7,7 +7,6 @@ import StatsView from "@/components/stats/StatsView";
 import SharedFrame from "@/components/stats/SharedFrame";
 import SeasonHeader from "@/components/stats/SeasonHeader";
 import HallOfFame from "@/components/stats/HallOfFame";
-import SeasonOpeningBoard from "@/components/stats/SeasonOpeningBoard";
 
 /**
  * Public read-only stats at pokeresh.com/<slug>.
@@ -45,34 +44,30 @@ export default function SharedStatsPage() {
           else to show, and an empty page reads as broken. */}
       <HallOfFame entries={shared.hallOfFame} />
 
-      {shared.awaitingFirstGame ? (
-        <SeasonOpeningBoard roster={shared.roster} />
-      ) : (
-        <>
-          <StatsView
-            sessions={shared.sessions}
-            playerHref={(id) => `/${slug}/player/${id}`}
-          />
+      {/* One layout, whether or not the season has started. With no games,
+          StatsView draws the same page from the roster with every figure at
+          zero — rather than a different, smaller page. */}
+      <StatsView
+        sessions={shared.sessions}
+        playerHref={(id) => `/${slug}/player/${id}`}
+        roster={shared.roster}
+      />
 
-          {shared.sessions.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-white/5">
-              <Link
-                href={`/${slug}/games`}
-                className="flex items-center justify-between gap-3 min-h-[56px] px-4 rounded-2xl border border-white/10 hover:border-white/25 transition-colors"
-              >
-                <span>
-                  <span className="block font-semibold">
-                    View game history
-                  </span>
-                  <span className="block text-white/40 text-xs">
-                    All {shared.sessions.length} nights this season
-                  </span>
-                </span>
-                <span className="text-white/25 shrink-0">→</span>
-              </Link>
-            </div>
-          )}
-        </>
+      {shared.sessions.length > 0 && (
+        <div className="mt-8 pt-6 border-t border-white/5">
+          <Link
+            href={`/${slug}/games`}
+            className="flex items-center justify-between gap-3 min-h-[56px] px-4 rounded-2xl border border-white/10 hover:border-white/25 transition-colors"
+          >
+            <span>
+              <span className="block font-semibold">View game history</span>
+              <span className="block text-white/40 text-xs">
+                All {shared.sessions.length} nights this season
+              </span>
+            </span>
+            <span className="text-white/25 shrink-0">→</span>
+          </Link>
+        </div>
       )}
     </SharedFrame>
   );

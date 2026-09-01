@@ -65,13 +65,8 @@ function seasonsWithGames(sessions, startFrom) {
 }
 
 function seasonToShow(sessions, startFrom, now) {
-  const current = seasonOf(now);
-  const played = seasonsWithGames(sessions, startFrom);
-  if (played.some((s) => s.id === current.id)) {
-    return { season: current, isCurrent: true };
-  }
-  if (played.length === 0) return null;
-  return { season: played[0], isCurrent: false };
+  if (startFrom === null || now < startFrom) return null;
+  return { season: seasonOf(now), isCurrent: true };
 }
 
 function computeSeasonResult(season, seasonSessions, options = {}) {
@@ -230,22 +225,39 @@ console.log("\nWhich season the shared page shows");
 {
   const sessions = [session("a", at(2026, 9, 10), [player("p1", "Ram", 500)])];
   const from = at(2026, 9, 1);
+
   check(
-    "the running season, when it has games",
-    seasonToShow(sessions, from, at(2026, 10, 1)),
-    { season: seasonOf(at(2026, 9, 10)), isCurrent: true },
-  );
-  check(
-    "the last completed one during an off-season",
-    seasonToShow(sessions, from, at(2026, 12, 15))?.isCurrent,
-    false,
-  );
-  check(
-    "and its id",
-    seasonToShow(sessions, from, at(2026, 12, 15))?.season.id,
+    "the season running now",
+    seasonToShow(sessions, from, at(2026, 10, 1))?.season.id,
     "2026-autumn",
   );
-  check("nothing at all before any games", seasonToShow([], from, at(2026, 9, 5)), null);
+  // The bug this replaced: with no games yet there was no season to show,
+  // so the welcome banner never rendered on a fresh season.
+  check(
+    "the current season shows even with no games in it",
+    seasonToShow([], from, at(2026, 9, 5))?.season.id,
+    "2026-autumn",
+  );
+  check(
+    "and it counts as current",
+    seasonToShow([], from, at(2026, 9, 5))?.isCurrent,
+    true,
+  );
+  check(
+    "once the calendar rolls over, the new season takes over",
+    seasonToShow(sessions, from, at(2026, 12, 15))?.season.id,
+    "2026-winter",
+  );
+  check(
+    "nothing before the date seasons begin",
+    seasonToShow(sessions, from, at(2026, 8, 20)),
+    null,
+  );
+  check(
+    "nothing when seasons are switched off",
+    seasonToShow(sessions, null, at(2026, 10, 1)),
+    null,
+  );
 }
 
 console.log("\nThe award");
