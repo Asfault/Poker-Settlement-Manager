@@ -168,6 +168,15 @@ export function seasonGreeting(
   return null;
 }
 
+/** "30 November" — the last day, for the stakes line. */
+export function seasonEndLabel(season: Season): string {
+  // endsAt is exclusive, so step back a day.
+  return new Date(season.endsAt - 86400000).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+  });
+}
+
 /** "1 Sep – 30 Nov 2026", for the season header. */
 export function seasonRangeLabel(season: Season): string {
   const start = new Date(season.startsAt);

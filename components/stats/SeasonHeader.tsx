@@ -3,9 +3,11 @@
 import type { SeasonResult } from "@/lib/stats/season";
 import {
   SEASON_ACCENT,
+  seasonEndLabel,
   seasonGreeting,
   seasonPhase,
   seasonRangeLabel,
+  seasonWord,
 } from "@/lib/stats/season";
 import { formatINR } from "@/lib/format";
 import Card from "@/components/Card";
@@ -144,6 +146,23 @@ export default function SeasonHeader({
               : "No champion for this season."}
           </p>
         )
+      )}
+
+      {/* What's being played for. Shared page only, and dropped once the
+          season is over — by then the champion block above says who took
+          it, and "gets a trophy" in the past tense reads oddly. */}
+      {welcome && phase !== "finished" && (
+        <p
+          className="text-sm mt-4 pt-4 border-t border-white/5 leading-relaxed"
+          style={{ color: `${accent}cc` }}
+        >
+          Most profit by the end of the season gets a trophy, glory, and a
+          picture of everyone bowing down in front of them.{" "}
+          <span className="text-white/45">
+            {seasonWord(result.season.name)} ends{" "}
+            {seasonEndLabel(result.season)}.
+          </span>
+        </p>
       )}
       </div>
     </Card>
