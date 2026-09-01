@@ -123,7 +123,7 @@ export default function LiveSessionScreen({
   }
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:py-10 pb-10">
+    <div className="min-h-screen px-4 pb-10 pt-safe-6">
       <div className="max-w-2xl mx-auto">
         <header className="mb-5">
           <h1 className="text-xl font-bold">Live Session</h1>

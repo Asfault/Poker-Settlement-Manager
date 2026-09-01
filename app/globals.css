@@ -41,6 +41,25 @@ body {
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* Top padding that ADDS the notch inset to a screen's own padding, rather
+   than replacing it like `.pt-safe` does. The public app's screens are their
+   own full-height roots with no header above them, so without these the
+   Dynamic Island sits on top of their first row of controls. The number
+   matches the Tailwind scale it stands in for: pt-safe-6 == pt-6 + inset.
+   Not available as `sm:` variants — these are plain classes, so Tailwind
+   can't generate breakpoint versions of them. */
+.pt-safe-6 {
+  padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+}
+
+.pt-safe-8 {
+  padding-top: calc(2rem + env(safe-area-inset-top, 0px));
+}
+
+.pt-safe-12 {
+  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+}
+
 /* Scroll padding so content never ends flush under a fixed bar. */
 .scroll-pb-safe {
   scroll-padding-bottom: env(safe-area-inset-bottom, 0px);

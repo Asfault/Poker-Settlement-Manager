@@ -13,7 +13,7 @@ export default function StartScreen({
   onResume: () => void;
 }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-12 pt-safe-12">
       <div className="text-center max-w-md">
         <div className="text-6xl mb-6">🃏</div>
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-white mb-3">

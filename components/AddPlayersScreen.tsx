@@ -45,7 +45,7 @@ export default function AddPlayersScreen({
   }
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-12">
+    <div className="min-h-screen px-4 pb-8 sm:pb-12 pt-safe-8">
       <div className="max-w-xl mx-auto">
         <header className="flex items-center justify-between mb-6">
           <button

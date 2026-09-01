@@ -69,7 +69,7 @@ export default function SessionOverScreen({
   }
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:py-10 pb-32">
+    <div className="min-h-screen px-4 pb-32 pt-safe-6">
       <div className="max-w-2xl mx-auto">
         <header className="flex items-center justify-between mb-5">
           <button
