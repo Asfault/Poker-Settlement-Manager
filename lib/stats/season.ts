@@ -168,6 +168,18 @@ export function seasonGreeting(
   return null;
 }
 
+/**
+ * "AUTUMN 26" — for the champion badge on the summary image.
+ *
+ * Deliberately the season word and a two-digit year, never a custom name:
+ * the badge sits in the narrowest column on the card, and something like
+ * "THE GREAT COLLAPSE" would run into the next column. Winter uses only the
+ * year it started, so every season is the same length.
+ */
+export function seasonBadgeLabel(season: Season): string {
+  return `${LABELS[season.name].toUpperCase()} ${String(season.year).slice(2)}`;
+}
+
 /** "30 November" — the last day, for the stakes line. */
 export function seasonEndLabel(season: Season): string {
   // endsAt is exclusive, so step back a day.
@@ -433,6 +445,43 @@ export interface SeasonMeta {
  * `exclude` drops the season currently being shown, since it isn't history
  * yet.
  */
+/**
+ * The reigning champion: whoever won the most recent COMPLETED season.
+ *
+ * "Completed" means a season that has games and isn't the one running now —
+ * the title carries through the following season until someone takes it.
+ * Null when no season has finished yet, or the last one had no champion.
+ */
+export function reigningChampion(
+  sessions: SessionSummary[],
+  startFrom: number | null,
+  meta: SeasonMeta[],
+  exclusions: { seasonId: string; playerId: string }[],
+  now: number,
+): { season: Season; standing: SeasonStanding } | null {
+  const current = seasonOf(now);
+  const past = seasonsWithGames(sessions, startFrom).filter(
+    (s) => s.id !== current.id && s.startsAt < current.startsAt,
+  );
+  if (past.length === 0) return null;
+
+  const last = past[0];
+  const m = meta.find((x) => x.seasonId === last.id);
+  const result = computeSeasonResult(
+    last,
+    sessionsInSeason(sessions, last, startFrom),
+    {
+      excludedPlayerIds: exclusions
+        .filter((e) => e.seasonId === last.id)
+        .map((e) => e.playerId),
+      noWinner: m?.noWinner,
+    },
+  );
+  // A shared title has no single face to put on the image.
+  if (result.tied.length > 0 || !result.winner) return null;
+  return { season: last, standing: result.winner };
+}
+
 export function buildHallOfFame(
   sessions: SessionSummary[],
   startFrom: number | null,

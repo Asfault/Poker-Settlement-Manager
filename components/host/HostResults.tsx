@@ -7,6 +7,9 @@ import { LoadedSession, sumBuyIns } from "@/lib/db/sessions";
 import { computeNetRows, settleNet, totalHouseFee } from "@/lib/houseFee";
 import { listExpenses } from "@/lib/db/expenses";
 import { SessionExpense, expenseTotal } from "@/lib/expenses";
+import { loadCompletedSessions } from "@/lib/db/stats";
+import { loadSeasonSettings } from "@/lib/db/seasons";
+import { reigningChampion, seasonBadgeLabel } from "@/lib/stats/season";
 import { formatDateTime, formatDuration, formatINR } from "@/lib/format";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
@@ -40,6 +43,43 @@ export default function HostResults({
       .then(setExpenses)
       .catch(() => setExpenses([]));
   }, [session.id]);
+
+  /**
+   * Last season's champion, badged on the summary image until someone takes
+   * the title off them. Loaded separately and allowed to fail quietly — the
+   * image is the point of this screen and it shouldn't break over a badge.
+   */
+  const [champion, setChampion] = useState<{
+    playerId: string;
+    label: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([loadCompletedSessions(), loadSeasonSettings()])
+      .then(([all, cfg]) => {
+        if (!active) return;
+        const champ = reigningChampion(
+          all,
+          cfg.startFrom,
+          cfg.meta,
+          cfg.exclusions,
+          Date.now(),
+        );
+        setChampion(
+          champ
+            ? {
+                playerId: champ.standing.playerId,
+                label: seasonBadgeLabel(champ.season),
+              }
+            : null,
+        );
+      })
+      .catch(() => setChampion(null));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Editing buy-ins can leave chips out of balance. Surface it rather than
   // letting a broken session sit quietly in the stats.
@@ -488,6 +528,8 @@ export default function HostResults({
                 totalPot={pot}
                 inclusionNote={inclusionNote}
                 buyInsByPlayer={buyInsByPlayer}
+                championPlayerId={champion?.playerId ?? null}
+                championLabel={champion?.label ?? null}
               />
             </div>
           </div>

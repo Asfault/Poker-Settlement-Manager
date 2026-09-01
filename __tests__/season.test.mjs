@@ -375,6 +375,150 @@ console.log("\nThe award");
   check("and no games", computeSeasonResult(season, []).gameCount, 0);
 }
 
+// ---------- reigning champion ----------
+
+function reigningChampion(sessions, startFrom, meta, exclusions, now) {
+  const current = seasonOf(now);
+  const past = seasonsWithGames(sessions, startFrom).filter(
+    (s) => s.id !== current.id && s.startsAt < current.startsAt,
+  );
+  if (past.length === 0) return null;
+  const last = past[0];
+  const m = meta.find((x) => x.seasonId === last.id);
+  const result = computeSeasonResult(
+    last,
+    sessionsInSeason(sessions, last, startFrom),
+    {
+      excludedPlayerIds: exclusions
+        .filter((e) => e.seasonId === last.id)
+        .map((e) => e.playerId),
+      noWinner: m?.noWinner,
+    },
+  );
+  if (result.tied.length > 0 || !result.winner) return null;
+  return { season: last, standing: result.winner };
+}
+
+function seasonBadgeLabel(season) {
+  const labels = {
+    winter: "Winter",
+    summer: "Summer",
+    monsoon: "Monsoon",
+    autumn: "Autumn",
+  };
+  return `${labels[season.name].toUpperCase()} ${String(season.year).slice(2)}`;
+}
+
+console.log("\nReigning champion");
+{
+  const from = at(2026, 9, 1);
+  // Autumn: Ram wins. Then Winter begins.
+  const autumn = [
+    session("a1", at(2026, 9, 10), [
+      player("p1", "Ram", 2000),
+      player("p2", "Sita", -2000),
+    ]),
+    session("a2", at(2026, 10, 10), [
+      player("p1", "Ram", 1000),
+      player("p2", "Sita", -1000),
+    ]),
+  ];
+
+  check(
+    "during the first season there's nobody to crown",
+    reigningChampion(autumn, from, [], [], at(2026, 10, 20)),
+    null,
+  );
+  check(
+    "once the next season starts, last season's winner reigns",
+    reigningChampion(autumn, from, [], [], at(2026, 12, 10))?.standing.playerId,
+    "p1",
+  );
+  check(
+    "a season flagged as having no champion crowns nobody",
+    reigningChampion(
+      autumn,
+      from,
+      [{ seasonId: "2026-autumn", customName: null, note: null, noWinner: true }],
+      [],
+      at(2026, 12, 10),
+    ),
+    null,
+  );
+  check(
+    "nor does a disqualified winner",
+    reigningChampion(
+      autumn,
+      from,
+      [],
+      [{ seasonId: "2026-autumn", playerId: "p1" }],
+      at(2026, 12, 10),
+    ),
+    null,
+  );
+}
+{
+  const from = at(2026, 9, 1);
+  // A dead heat has no single face to put on the image.
+  const drawn = [
+    session("a1", at(2026, 9, 10), [
+      player("p1", "Ram", 500),
+      player("p2", "Sita", 500),
+    ]),
+  ];
+  check(
+    "a shared title crowns nobody",
+    reigningChampion(drawn, from, [], [], at(2026, 12, 10)),
+    null,
+  );
+}
+{
+  const from = at(2026, 9, 1);
+  // Two finished seasons — only the most recent one counts.
+  const sessions = [
+    session("a1", at(2026, 9, 10), [
+      player("p1", "Ram", 2000),
+      player("p2", "Sita", -2000),
+    ]),
+    session("w1", at(2026, 12, 10), [
+      player("p1", "Ram", -3000),
+      player("p2", "Sita", 3000),
+    ]),
+  ];
+  check(
+    "the title passes to the newest completed season's winner",
+    reigningChampion(sessions, from, [], [], at(2027, 4, 10))?.standing.playerId,
+    "p2",
+  );
+  check(
+    "and the badge names the season they won, not the current one",
+    seasonBadgeLabel(
+      reigningChampion(sessions, from, [], [], at(2027, 4, 10)).season,
+    ),
+    "WINTER 26",
+  );
+}
+
+console.log("\nBadge labels");
+check(
+  "autumn",
+  seasonBadgeLabel(seasonOf(at(2026, 9, 15))),
+  "AUTUMN 26",
+);
+// Winter spans two years but the badge uses only the one it started in —
+// "WINTER 26–27 CHAMP" would run past the player column on the card.
+check("winter uses its starting year", seasonBadgeLabel(seasonOf(at(2027, 1, 15))), "WINTER 26");
+check("december is the same winter", seasonBadgeLabel(seasonOf(at(2026, 12, 20))), "WINTER 26");
+check("monsoon", seasonBadgeLabel(seasonOf(at(2026, 7, 1))), "MONSOON 26");
+check("summer", seasonBadgeLabel(seasonOf(at(2027, 4, 1))), "SUMMER 27");
+check(
+  "every label is short enough for the column",
+  ["autumn", "winter", "monsoon", "summer"].every(
+    (n) => `${seasonBadgeLabel(build(n, 2026))} CHAMP`.length <= 16,
+  ),
+  true,
+);
+
 // ---------- banner phases ----------
 
 const CLOSING_MS = 21 * 86400000;

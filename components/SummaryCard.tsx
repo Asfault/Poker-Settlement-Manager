@@ -22,6 +22,14 @@ interface SummaryCardProps {
    * anyone with a single buy-in, where it'd just repeat the total.
    */
   buyInsByPlayer?: Record<string, number[]>;
+  /**
+   * Whoever won the PREVIOUS completed season, marked with a badge under
+   * their name until a new champion is crowned. Omitted by the public app,
+   * whose games aren't part of any season.
+   */
+  championPlayerId?: string | null;
+  /** The season they won, e.g. "AUTUMN 26". Rendered as "AUTUMN 26 CHAMP". */
+  championLabel?: string | null;
   /** Unused — kept for API compatibility. */
   biggestWinner?: PlayerResult | null;
 }
@@ -217,8 +225,17 @@ function CornerCards() {
   );
 }
 
-function MiniAvatar({ name, size }: { name: string; size: number }) {
-  return (
+function MiniAvatar({
+  name,
+  size,
+  crowned = false,
+}: {
+  name: string;
+  size: number;
+  /** The night's biggest winner. Adds a tilted crown over the circle. */
+  crowned?: boolean;
+}) {
+  const avatar = (
     <span
       style={{
         width: size,
@@ -240,11 +257,58 @@ function MiniAvatar({ name, size }: { name: string; size: number }) {
       {initials(name)}
     </span>
   );
+
+  if (!crowned) return avatar;
+
+  return (
+    <span
+      style={{
+        position: "relative",
+        width: size,
+        height: size,
+        flexShrink: 0,
+        display: "inline-flex",
+      }}
+    >
+      {avatar}
+      {/* Drawn rather than an emoji: html-to-image rasterises this card, and
+          emoji come out inconsistently through that path. Overhangs mostly
+          to the left — the row has limited headroom above the avatar. */}
+      <svg
+        viewBox="0 0 24 18"
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: -size * 0.16,
+          top: -size * 0.2,
+          width: size * 0.78,
+          height: size * 0.58,
+          transform: "rotate(-22deg)",
+        }}
+      >
+        <path
+          d="M2 16 L2 5 L7 9 L12 2 L17 9 L22 5 L22 16 Z"
+          fill={GOLD}
+          stroke="#b8891f"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
 }
 
 const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
   function SummaryCard(
-    { results, settlements, totalPot, inclusionNote, buyInsByPlayer },
+    {
+      results,
+      settlements,
+      totalPot,
+      inclusionNote,
+      buyInsByPlayer,
+      championPlayerId,
+      championLabel,
+    },
     ref,
   ) {
     const playerCount = Math.max(results.length, 1);
@@ -559,15 +623,45 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
                       minWidth: 0,
                     }}
                   >
-                    <MiniAvatar name={r.name} size={clamp(rowFont + 14, 38, 50)} />
-                    <span
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {r.name}
+                    <MiniAvatar
+                      name={r.name}
+                      size={clamp(rowFont + 14, 38, 50)}
+                      crowned={topWinner?.id === r.id}
+                    />
+                    {/* The badge stacks under the name rather than sitting
+                        beside it. The player column is the narrowest thing
+                        on the card and a long name would start truncating to
+                        make room; vertical slack inside the row is free. */}
+                    <span style={{ minWidth: 0, lineHeight: 1.15 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          // The night's winner, in the same gold as the
+                          // crown. Nothing else in this column uses gold, so
+                          // it reads as "this one" without competing with
+                          // the P/L colours.
+                          color: topWinner?.id === r.id ? GOLD : undefined,
+                        }}
+                      >
+                        {r.name}
+                      </span>
+                      {championPlayerId === r.id && championLabel && (
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: Math.round(rowFont * 0.36),
+                            letterSpacing: "0.12em",
+                            fontWeight: 900,
+                            color: "rgba(255, 217, 90, 0.75)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {championLabel} CHAMP
+                        </span>
+                      )}
                     </span>
                   </div>
                   <div
