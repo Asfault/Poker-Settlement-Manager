@@ -157,7 +157,8 @@ export default function SeasonHeader({
           style={{ color: `${accent}cc` }}
         >
           Most profit by the end of the season gets a trophy, glory, and a
-          picture of everyone bowing down in front of them.{" "}
+          picture of everyone bowing down in front of them. The winner also
+          eats free at every game next season.{" "}
           <span className="text-white/45">
             {seasonWord(result.season.name)} ends{" "}
             {seasonEndLabel(result.season)}.
