@@ -7,6 +7,26 @@ function nameOf(p) {
 function plOf(p) {
   return p.chips_left - p.total_buy_in;
 }
+/** Mirrors seasonOf from lib/stats/season.ts — the window a date falls in. */
+function seasonWindow(epochMs) {
+  const START = { winter: 12, summer: 3, monsoon: 6, autumn: 9 };
+  const d = new Date(epochMs);
+  const m = d.getMonth() + 1;
+  const name =
+    m === 12 || m <= 2
+      ? "winter"
+      : m <= 5
+        ? "summer"
+        : m <= 8
+          ? "monsoon"
+          : "autumn";
+  const year = name === "winter" && m <= 2 ? d.getFullYear() - 1 : d.getFullYear();
+  return {
+    startsAt: new Date(year, START[name] - 1, 1).getTime(),
+    endsAt: new Date(year, START[name] + 2, 1).getTime(),
+  };
+}
+
 function totalsFrom(sessions) {
   const out = new Map();
   for (const s of sessions) {
@@ -89,9 +109,17 @@ function buildRecap(history, now, windowMs) {
     }))
     .sort((a, b) => b.profitLoss - a.profitLoss);
 
+  // Standings are scoped to the season tonight belongs to; milestones below
+  // still read the whole history.
+  const season = seasonWindow(new Date(latest.started_at).getTime());
+  const inSeason = sorted.filter((s) => {
+    const t = new Date(s.started_at).getTime();
+    return t >= season.startsAt && t < season.endsAt;
+  });
   const before = sorted.filter((s) => s.id !== latest.id);
-  const totalsAfter = totalsFrom(sorted);
-  const totalsBefore = totalsFrom(before);
+  const seasonBefore = inSeason.filter((s) => s.id !== latest.id);
+  const totalsAfter = totalsFrom(inSeason);
+  const totalsBefore = totalsFrom(seasonBefore);
   const ranksAfter = rankOf(totalsAfter);
   const ranksBefore = rankOf(totalsBefore);
   const nameById = new Map();
@@ -119,7 +147,15 @@ function buildRecap(history, now, windowMs) {
     pot: latest.players.reduce((s, p) => s + p.total_buy_in, 0),
     tonight,
     standings,
-    milestones: buildMilestones(before, tonight, totalsAfter, totalsBefore),
+    // All-time, deliberately: "biggest night ever" means ever, and "into
+    // profit at last" is about a whole record. Passing the season totals
+    // here would reset both every three months.
+    milestones: buildMilestones(
+      before,
+      tonight,
+      totalsFrom(sorted),
+      totalsFrom(before),
+    ),
   };
 }
 
@@ -147,9 +183,14 @@ function buildRecapWithRecords(history, now, windowMs) {
       new Date(a.ended_at ?? a.started_at).getTime(),
   );
   const latest = sorted[0];
-  const before = sorted.filter((s) => s.id !== latest.id);
-  const recAfter = recordsFrom(sorted);
-  const recBefore = recordsFrom(before);
+  // Season-scoped, matching the standings they sit beside.
+  const season = seasonWindow(new Date(latest.started_at).getTime());
+  const inSeason = sorted.filter((s) => {
+    const t = new Date(s.started_at).getTime();
+    return t >= season.startsAt && t < season.endsAt;
+  });
+  const recAfter = recordsFrom(inSeason);
+  const recBefore = recordsFrom(inSeason.filter((s) => s.id !== latest.id));
 
   base.standings = base.standings.map((s) => {
     const a = recAfter.get(s.playerId) ?? { sessions: 0, wins: 0, total: 0 };
@@ -371,6 +412,74 @@ console.log("\nWin rate and tonight's delta");
   const absent = r.standings.find((s) => s.playerId === "p9");
   check("an absent player's win rate doesn't move", absent.winRateDelta, 0);
   check("nor does their total", absent.tonightDelta, 0);
+}
+
+console.log("\nStandings are scoped to the season");
+{
+  // NOW sits in winter. A game 120 days earlier is the previous season, so
+  // it must not count towards the standings — but it should still be
+  // visible to the milestone tests, which are all-time by design.
+  const lastSeason = sess("old", NOW - 120 * DAY, [
+    pl("p1", "Ram", 1000, 9000),
+    pl("p2", "Sita", 1000, 0),
+  ]);
+  const tonight = sess("new", NOW - MIN, [
+    pl("p1", "Ram", 1000, 0),
+    pl("p2", "Sita", 1000, 3000),
+  ]);
+  const r = buildRecapWithRecords([lastSeason, tonight], NOW, 30 * MIN);
+  const byId = new Map(r.standings.map((s) => [s.playerId, s]));
+
+  check(
+    "last season's huge win doesn't carry into this season's table",
+    byId.get("p1").total,
+    -1000,
+  );
+  check("tonight's winner leads the season", r.standings[0].playerId, "p2");
+  check(
+    "and a player's season record counts only this season's games",
+    byId.get("p2").sessions,
+    1,
+  );
+  check(
+    "a first appearance this season has no previous position",
+    byId.get("p1").movement,
+    null,
+  );
+  // Ram's -1000 is his worst night only when measured against last
+  // season's +8000 — so this firing proves milestones aren't season-scoped.
+  check(
+    "milestones still see the whole history",
+    r.milestones.some(
+      (m) => m.name === "Ram" && m.headline === "Worst night ever",
+    ),
+    true,
+  );
+  // And the mirror of it: all-time he's still +7000, so he hasn't gone
+  // under. Season totals would have said -1000 and fired this wrongly.
+  check(
+    "and judge profit across it, not just this season",
+    r.milestones.some(
+      (m) => m.name === "Ram" && m.headline === "Underwater for the first time",
+    ),
+    false,
+  );
+}
+{
+  // Two games in the same season — movement is measured within it.
+  const a = sess("a", NOW - 20 * DAY, [
+    pl("p1", "Ram", 1000, 3000),
+    pl("p2", "Sita", 1000, 0),
+  ]);
+  const b = sess("b", NOW - MIN, [
+    pl("p1", "Ram", 1000, 0),
+    pl("p2", "Sita", 1000, 5000),
+  ]);
+  const r = buildRecap([a, b], NOW, 30 * MIN);
+  const byId = new Map(r.standings.map((s) => [s.playerId, s]));
+  check("the climber tops the season", r.standings[0].playerId, "p2");
+  check("and is shown as having climbed", byId.get("p2").movement, 1);
+  check("the overtaken player drops", byId.get("p1").movement, -1);
 }
 
 console.log("\nFormatting");

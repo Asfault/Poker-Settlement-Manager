@@ -3,6 +3,7 @@ import type {
   DisplayLivePlayer,
   DisplayPayload,
 } from "@/lib/db/display";
+import { seasonLabel, seasonOf } from "@/lib/stats/season";
 
 /**
  * Everything the board and the content engine read, derived once from the
@@ -118,6 +119,21 @@ export interface Derived {
   } | null;
   lifetime: LifetimeRow[];
   group: GroupFacts;
+  /**
+   * The current season only — the same windows the shared page uses, derived
+   * from dates so the board needs nothing new from the database.
+   *
+   * Standings are seasonal because "who's winning" is a season question.
+   * Everything else on the board — records, per-player facts, how much has
+   * moved across this table — stays all-time, because "what this table has
+   * done" isn't.
+   */
+  season: {
+    label: string;
+    standings: LifetimeRow[];
+    sessions: number;
+    totalMoney: number;
+  };
 }
 
 const TILT_WINDOW_MS = 15 * 60 * 1000; // two buy-ins this close starts it
@@ -163,11 +179,30 @@ function nameOf(p: { name: string; nickname: string | null }): string {
   return p.nickname?.trim() || p.name;
 }
 
+// Season windows are derived from dates, so the board can scope itself
+// without the payload carrying any season data.
+
+
 export function derive(payload: DisplayPayload, now = Date.now()): Derived {
+  const season = seasonOf(now);
+  const seasonHistory = payload.history.filter((s) => {
+    const t = new Date(s.started_at).getTime();
+    return t >= season.startsAt && t < season.endsAt;
+  });
+
   return {
     live: deriveLive(payload, now),
     lifetime: deriveLifetime(payload.history),
     group: deriveGroup(payload.history),
+    season: {
+      label: seasonLabel(season),
+      standings: deriveLifetime(seasonHistory),
+      sessions: seasonHistory.length,
+      totalMoney: seasonHistory.reduce(
+        (sum, s) => sum + s.players.reduce((a, p) => a + p.total_buy_in, 0),
+        0,
+      ),
+    },
   };
 }
 

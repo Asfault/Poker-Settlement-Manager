@@ -127,7 +127,7 @@ function StandingsPanel({ recap }: { recap: Recap }) {
   const rows = recap.standings.slice(0, 8);
   return (
     <div className="h-full flex flex-col animate-[fadeIn_450ms_ease-out]">
-      <PanelTitle>All time · after tonight</PanelTitle>
+      <PanelTitle>{recap.seasonLabel} · after tonight</PanelTitle>
       <div
         className="flex-1 min-h-0 grid gap-[1.2vh]"
         style={{ gridTemplateRows: `repeat(${rows.length}, 1fr)` }}

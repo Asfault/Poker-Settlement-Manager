@@ -1,4 +1,5 @@
 import type { DisplayHistorySession } from "@/lib/db/display";
+import { seasonLabel, seasonOf } from "@/lib/stats/season";
 
 /**
  * The end-of-night reveal.
@@ -75,7 +76,14 @@ export interface Recap {
   endedAt: number;
   pot: number;
   tonight: RecapPlayer[];
+  /**
+   * The SEASON table after tonight, with movement. Seasonal rather than
+   * all-time because that's the live competition — and within a season a
+   * good night can genuinely move someone, which is what makes the reveal
+   * worth watching.
+   */
   standings: RecapStanding[];
+  seasonLabel: string;
   milestones: RecapMilestone[];
 }
 
@@ -142,10 +150,18 @@ export function buildRecap(
     }))
     .sort((a, b) => b.profitLoss - a.profitLoss);
 
-  // Standings now, against standings as they were before tonight.
+  // Standings now, against standings as they were before tonight — both
+  // scoped to the season tonight belongs to. Milestones below still use the
+  // full history, since "biggest night ever" means ever.
+  const season = seasonOf(new Date(latest.started_at).getTime());
+  const inSeason = sorted.filter((s) => {
+    const t = new Date(s.started_at).getTime();
+    return t >= season.startsAt && t < season.endsAt;
+  });
   const before = sorted.filter((s) => s.id !== latest.id);
-  const totalsAfter = totalsFrom(sorted);
-  const totalsBefore = totalsFrom(before);
+  const seasonBefore = inSeason.filter((s) => s.id !== latest.id);
+  const totalsAfter = totalsFrom(inSeason);
+  const totalsBefore = totalsFrom(seasonBefore);
   const ranksAfter = rankOf(totalsAfter);
   const ranksBefore = rankOf(totalsBefore);
 
@@ -156,8 +172,10 @@ export function buildRecap(
     }
   }
 
-  const recAfter = recordsFrom(sorted);
-  const recBefore = recordsFrom(before);
+  // Win rate and W/L on this panel are the season's, matching the standings
+  // beside them.
+  const recAfter = recordsFrom(inSeason);
+  const recBefore = recordsFrom(seasonBefore);
 
   const standings: RecapStanding[] = [...totalsAfter.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -194,7 +212,17 @@ export function buildRecap(
     pot: latest.players.reduce((s, p) => s + p.total_buy_in, 0),
     tonight,
     standings,
-    milestones: buildMilestones(latest, before, tonight, totalsAfter, totalsBefore),
+    seasonLabel: seasonLabel(season),
+    // Milestones stay ALL-TIME. "Biggest night ever" means ever, and
+    // "into profit at last" is about someone's whole record — passing the
+    // season totals here would have made both reset every three months.
+    milestones: buildMilestones(
+      latest,
+      before,
+      tonight,
+      totalsFrom(sorted),
+      totalsFrom(before),
+    ),
   };
 }
 

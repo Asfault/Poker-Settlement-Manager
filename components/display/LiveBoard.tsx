@@ -29,9 +29,15 @@ export default function LiveBoard({
   );
 }
 
-/** Shown between sessions — leaderboard rather than an empty screen. */
+/**
+ * Shown between sessions — the season table rather than an empty screen.
+ *
+ * Seasonal, not all-time: this is the live competition, and a two-year
+ * accumulation nobody can catch up on isn't one. The rest of the board's
+ * content stays all-time.
+ */
 function IdleBoard({ derived }: { derived: Derived }) {
-  const top = derived.lifetime.slice(0, 8);
+  const top = derived.season.standings.slice(0, 8);
 
   if (top.length === 0) {
     return (
@@ -41,7 +47,10 @@ function IdleBoard({ derived }: { derived: Derived }) {
           POKERESH
         </div>
         <div className="text-white/40 mt-4 text-[clamp(18px,2vw,32px)]">
-          Waiting for the next game
+          {derived.season.label} starts here
+        </div>
+        <div className="text-white/25 mt-2 text-[clamp(14px,1.4vw,24px)]">
+          Nobody has played a hand yet
         </div>
       </div>
     );
@@ -51,11 +60,12 @@ function IdleBoard({ derived }: { derived: Derived }) {
     <div className="h-full flex flex-col">
       <div className="mb-[3vh] shrink-0">
         <div className="uppercase tracking-[0.3em] text-white/40 font-semibold text-[clamp(14px,1.4vw,22px)]">
-          All-time standings
+          {derived.season.label}
         </div>
         <div className="text-white/30 text-[clamp(16px,1.6vw,26px)] mt-1">
-          {derived.group.sessions} sessions ·{" "}
-          {formatINR(derived.group.totalMoney)} across this table
+          {derived.season.sessions} night
+          {derived.season.sessions === 1 ? "" : "s"} ·{" "}
+          {formatINR(derived.season.totalMoney)} across the table this season
         </div>
       </div>
       <div className="flex-1 min-h-0 flex flex-col justify-center gap-[1.4vh]">
