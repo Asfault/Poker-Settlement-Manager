@@ -6,6 +6,7 @@ import { formatINR } from "@/lib/format";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import PlayerAvatar from "./PlayerAvatar";
+import BuyInTimesCard from "./BuyInTimesCard";
 
 export default function HostTally({
   data,
@@ -215,6 +216,10 @@ export default function HostTally({
             {error}
           </div>
         )}
+
+        {/* Below the entry fields, not above — this is for checking a buy-in
+            you're unsure about, not something you read on the way through. */}
+        <BuyInTimesCard players={players} />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe-4 bg-gradient-to-t from-felt-900 via-felt-900/95 to-transparent">

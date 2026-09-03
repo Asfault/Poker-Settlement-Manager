@@ -15,6 +15,7 @@ import Button from "@/components/Button";
 import Card from "@/components/Card";
 import SummaryCard from "@/components/SummaryCard";
 import PlayerAvatar from "./PlayerAvatar";
+import BuyInTimesCard from "./BuyInTimesCard";
 
 const W = 1080;
 const H = 1920;
@@ -484,6 +485,10 @@ export default function HostResults({
             <p className="text-white/35 text-xs mt-3">{inclusionNote}</p>
           )}
         </Card>
+
+        {/* After the settlements, before the export — a record of the night
+            rather than something you act on. */}
+        <BuyInTimesCard players={players} />
 
         {/* Export */}
         <Card className="p-5 mb-5">

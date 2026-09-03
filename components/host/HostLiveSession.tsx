@@ -26,7 +26,7 @@ import {
   expenseTotal,
   expensesInvolving,
 } from "@/lib/expenses";
-import { formatINR } from "@/lib/format";
+import { formatClock, formatINR } from "@/lib/format";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -446,22 +446,36 @@ export default function HostLiveSession({
 
                 {p.buy_ins.length > 0 && (
                   <details className="mt-2">
+                    {/* The latest buy-in's time sits on the collapsed line so
+                        you can tell whether you've already logged a rebuy
+                        without opening anything — the whole point of this. */}
                     <summary className="cursor-pointer text-xs text-white/50 hover:text-white/80 select-none">
-                      Buy-in history ({p.buy_ins.length})
+                      Buy-in history ({p.buy_ins.length}) ·{" "}
+                      {formatINR(p.buy_ins[p.buy_ins.length - 1].amount)} @{" "}
+                      {formatClock(
+                        new Date(
+                          p.buy_ins[p.buy_ins.length - 1].created_at,
+                        ).getTime(),
+                      )}
                     </summary>
-                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {/* Two per row rather than wrapping pills: with a time on
+                        each, pills would spill over three or four lines. */}
+                    <ul className="mt-2 grid grid-cols-2 gap-1.5">
                       {p.buy_ins.map((b) => (
                         <li
                           key={b.id}
-                          className="flex items-center gap-1 text-xs bg-felt-900 border border-white/10 rounded-full pl-2.5 pr-1 py-1"
+                          className="flex items-center gap-1.5 text-xs bg-felt-900 border border-white/10 rounded-lg pl-2.5 pr-1 py-1 min-w-0"
                         >
-                          <span className="text-white/80 tabular-nums">
+                          <span className="text-white/80 tabular-nums whitespace-nowrap">
                             {formatINR(b.amount)}
+                          </span>
+                          <span className="text-white/40 tabular-nums whitespace-nowrap text-[11px]">
+                            {formatClock(new Date(b.created_at).getTime())}
                           </span>
                           <button
                             onClick={() => act(() => removeBuyIn(b.id))}
                             disabled={busy}
-                            className="text-white/30 hover:text-loss px-1.5 leading-none"
+                            className="ml-auto text-white/30 hover:text-loss px-1.5 leading-none"
                             title="Remove buy-in"
                           >
                             ×
