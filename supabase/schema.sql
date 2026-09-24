@@ -106,6 +106,18 @@ drop policy if exists "authenticated full access" on app_settings;
 create policy "authenticated full access" on app_settings
   for all to authenticated using (true) with check (true);
 
+-- ---------- Data API grants ----------
+-- Supabase stopped auto-granting table access on 2026-10-30. Without these,
+-- a fresh database (new project, branch, `supabase db reset`) leaves the
+-- table unreachable from supabase-js. RLS above is still what decides who
+-- can see which rows; grants only decide whether the API can try at all.
+-- Idempotent, so safe to re-run on the live project.
+grant select, insert, update, delete on public.players to anon, authenticated, service_role;
+grant select, insert, update, delete on public.sessions to anon, authenticated, service_role;
+grant select, insert, update, delete on public.session_players to anon, authenticated, service_role;
+grant select, insert, update, delete on public.buy_ins to anon, authenticated, service_role;
+grant select, insert, update, delete on public.app_settings to anon, authenticated, service_role;
+
 -- ---------- Storage bucket for player photos ----------
 
 insert into storage.buckets (id, name, public)

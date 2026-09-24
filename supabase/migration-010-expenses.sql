@@ -57,6 +57,15 @@ drop policy if exists "authenticated full access" on session_expense_shares;
 create policy "authenticated full access" on session_expense_shares
   for all to authenticated using (true) with check (true);
 
+-- ---------- Data API grants ----------
+-- Supabase stopped auto-granting table access on 2026-10-30. Without these,
+-- a fresh database (new project, branch, `supabase db reset`) leaves the
+-- table unreachable from supabase-js. RLS above is still what decides who
+-- can see which rows; grants only decide whether the API can try at all.
+-- Idempotent, so safe to re-run on the live project.
+grant select, insert, update, delete on public.session_expenses to anon, authenticated, service_role;
+grant select, insert, update, delete on public.session_expense_shares to anon, authenticated, service_role;
+
 -- Sanity check after running:
 -- select * from session_expenses;
 -- select * from session_expense_shares;

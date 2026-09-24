@@ -36,3 +36,11 @@ create policy "host reads shared sessions" on shared_sessions
 drop policy if exists "host deletes shared sessions" on shared_sessions;
 create policy "host deletes shared sessions" on shared_sessions
   for delete to authenticated using (true);
+
+-- ---------- Data API grants ----------
+-- Supabase stopped auto-granting table access on 2026-10-30. Without these,
+-- a fresh database (new project, branch, `supabase db reset`) leaves the
+-- table unreachable from supabase-js. RLS above is still what decides who
+-- can see which rows; grants only decide whether the API can try at all.
+-- Idempotent, so safe to re-run on the live project.
+grant select, insert, update, delete on public.shared_sessions to anon, authenticated, service_role;
