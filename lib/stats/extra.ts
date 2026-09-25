@@ -289,8 +289,13 @@ export interface PlayerExtras {
    * available depends on `AttendanceBasis` — see `computePlayerExtras`.
    */
   attendanceRate: number;
-  /** Running total of P/L, oldest first. For the cumulative chart. */
-  cumulative: { at: number; total: number }[];
+  /**
+   * Running total of P/L, oldest first. For the cumulative chart. `night` is
+   * the session's position among ALL sessions passed in (0 = oldest), so a
+   * chart can put each point over the night it actually happened rather than
+   * over the player's own nth appearance.
+   */
+  cumulative: { at: number; night: number; total: number }[];
   /**
    * The typical night. More honest than the mean when one huge result would
    * otherwise drag the average around.
@@ -379,7 +384,7 @@ export function computePlayerExtras(
     timedProfit: number;
     timedMs: number;
     firstIndex: number;
-    cumulative: { at: number; total: number }[];
+    cumulative: { at: number; night: number; total: number }[];
     tableSizes: Map<number, { sessions: number; total: number }>;
     rebuyOffsets: number[];
     rockNights: number;
@@ -477,7 +482,11 @@ export function computePlayerExtras(
       e.pls.push(p.profitLoss);
       e.totalBuyIn += p.totalBuyIn;
       e.totalPl += p.profitLoss;
-      e.cumulative.push({ at: s.startedAt, total: e.totalPl });
+      e.cumulative.push({
+        at: s.startedAt,
+        night: sessionIndex,
+        total: e.totalPl,
+      });
 
       // Ties share the better position — two players on +500 are both 1st.
       const position =
