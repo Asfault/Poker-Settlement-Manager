@@ -25,6 +25,7 @@ export default function SharedPlayerStatsPage() {
         playerId={playerId}
         backHref={`/${slug}`}
         backLabel="Stats"
+        attendance="wholeScope"
       />
     </SharedFrame>
   );

@@ -51,6 +51,7 @@ export default function SharedStatsPage() {
         sessions={shared.sessions}
         playerHref={(id) => `/${slug}/player/${id}`}
         roster={shared.roster}
+        attendance="wholeScope"
       />
 
       {shared.sessions.length > 0 && (
