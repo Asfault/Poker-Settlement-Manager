@@ -2,6 +2,7 @@
 
 import type { SeasonResult } from "@/lib/stats/season";
 import {
+  MIN_ATTENDANCE,
   SEASON_ACCENT,
   seasonEndLabel,
   seasonGreeting,
@@ -150,7 +151,9 @@ export default function SeasonHeader({
 
       {/* What's being played for. Shared page only, and dropped once the
           season is over — by then the champion block above says who took
-          it, and "gets a trophy" in the past tense reads oddly. */}
+          it, and "gets a trophy" in the past tense reads oddly. The
+          attendance figure comes from MIN_ATTENDANCE so the copy can't
+          drift from the rule that actually decides the award. */}
       {welcome && phase !== "finished" && (
         <p
           className="text-sm mt-4 pt-4 border-t border-white/5 leading-relaxed"
@@ -158,7 +161,9 @@ export default function SeasonHeader({
         >
           Most profit by the end of the season gets a trophy, glory, and a
           picture of everyone bowing down in front of them. The winner also
-          eats free at every game next season.{" "}
+          eats free at every game next season. Players need at least{" "}
+          {Math.round(MIN_ATTENDANCE * 100)}% attendance to compete for the
+          Season Championship.{" "}
           <span className="text-white/45">
             {seasonWord(result.season.name)} ends{" "}
             {seasonEndLabel(result.season)}.
