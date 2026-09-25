@@ -261,13 +261,13 @@ export default function StatsView({
       </Card>
 
       {/* Charts */}
-      {chartSeries.some((s) => s.points.length > 1) && (
+      {sessions.length > 1 && (
         <>
           <h2 className="text-sm uppercase tracking-wide text-white/50 mb-2">
             Profit over time
           </h2>
           <Card className="p-4 mb-5">
-            <CumulativeChart series={chartSeries} />
+            <CumulativeChart series={chartSeries} nights={sessions.length} />
             <p className="text-white/30 text-xs mt-3">
               Running total per player, by session. Tap a name to hide it.
             </p>

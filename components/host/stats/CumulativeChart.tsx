@@ -6,10 +6,19 @@ import { formatINR } from "@/lib/format";
 /**
  * Cumulative poker P/L per player over time — the "who's actually up" chart.
  *
- * X axis is session index rather than real time: nights are what matter, and
- * spacing by date would squash a busy month against a quiet year. Each player
- * is plotted only across the nights they played, so lines start where a player
- * debuts.
+ * X axis is night number rather than real time: nights are what matter, and
+ * spacing by date would squash a busy month against a quiet year.
+ *
+ * Every point sits over the night it actually happened (`night` on each
+ * point), never over the player's own nth appearance. That was the old bug:
+ * plotting by a player's own index shifted everyone who'd missed a night
+ * leftwards and ended their line early, so lines stopped at different places
+ * and points sat over the wrong nights.
+ *
+ * Each line starts at ₹0 just before the player's first night, runs flat
+ * across nights they missed (their total didn't change), and carries on to
+ * the right edge, so where it finishes is always their current total — the
+ * same figure the legend shows.
  *
  * Legend entries toggle lines on and off. Capped to the six most frequent
  * players by default, since seven overlapping lines on a phone is unreadable.
@@ -19,8 +28,8 @@ export interface CumulativeSeries {
   playerId: string;
   name: string;
   sessions: number;
-  /** Oldest first. */
-  points: { at: number; total: number }[];
+  /** Oldest first. `night` is the 0-based index among all nights in scope. */
+  points: { at: number; night: number; total: number }[];
 }
 
 const COLORS = [
@@ -43,8 +52,11 @@ const PAD_B = 10;
 
 export default function CumulativeChart({
   series,
+  nights,
 }: {
   series: CumulativeSeries[];
+  /** Total nights in scope — sets the width of the x axis for every line. */
+  nights: number;
 }) {
   const ranked = useMemo(
     () => [...series].sort((a, b) => b.sessions - a.sessions),
@@ -57,12 +69,12 @@ export default function CumulativeChart({
 
   const visible = ranked.filter((s) => !hidden.has(s.playerId));
 
-  const { maxLen, min, max } = useMemo(() => {
-    let maxLen = 0;
+  const { min, max } = useMemo(() => {
+    // Starting from 0 keeps break-even on the chart, which every line
+    // begins from anyway.
     let min = 0;
     let max = 0;
     for (const s of visible) {
-      if (s.points.length > maxLen) maxLen = s.points.length;
       for (const p of s.points) {
         if (p.total < min) min = p.total;
         if (p.total > max) max = p.total;
@@ -73,13 +85,15 @@ export default function CumulativeChart({
       min -= 100;
       max += 100;
     }
-    return { maxLen, min, max };
+    return { min, max };
   }, [visible]);
 
-  if (series.length === 0) return null;
+  if (series.length === 0 || nights === 0) return null;
 
-  const x = (i: number) =>
-    PAD_L + (maxLen <= 1 ? 0 : (i / (maxLen - 1)) * (W - PAD_L - PAD_R));
+  // Column 0 is the start line, before anyone has played; column k is the
+  // running total after night k. So there are `nights + 1` columns.
+  const x = (col: number) =>
+    PAD_L + (col / nights) * (W - PAD_L - PAD_R);
   const y = (v: number) =>
     PAD_T + ((max - v) / (max - min)) * (H - PAD_T - PAD_B);
 
@@ -115,9 +129,21 @@ export default function CumulativeChart({
           const colorIndex = ranked.findIndex(
             (r) => r.playerId === s.playerId,
           );
-          const d = s.points
-            .map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.total)}`)
-            .join(" ");
+          if (s.points.length === 0) return null;
+          // From ₹0 just before their first night. For each night played:
+          // hold the previous total flat up to the start of that night (a
+          // no-op when they played the night before), then move to the new
+          // total. Finally flat to the right edge. Without the hold, a gap
+          // would be drawn as a diagonal across nights they weren't there.
+          const cmds = [`M ${x(s.points[0].night)} ${y(0)}`];
+          let prev = 0;
+          for (const p of s.points) {
+            cmds.push(`L ${x(p.night)} ${y(prev)}`);
+            cmds.push(`L ${x(p.night + 1)} ${y(p.total)}`);
+            prev = p.total;
+          }
+          cmds.push(`L ${x(nights)} ${y(prev)}`);
+          const d = cmds.join(" ");
           return (
             <path
               key={s.playerId}
