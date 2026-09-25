@@ -133,7 +133,7 @@ function computeGroupExtras(sessions) {
   };
 }
 
-function computePlayerExtras(sessions) {
+function computePlayerExtras(sessions, attendance = "sinceDebut") {
   const chronological = [...sessions].sort((a, b) => a.startedAt - b.startedAt);
   const acc = new Map();
 
@@ -232,10 +232,13 @@ function computePlayerExtras(sessions) {
       timesFirst: e.timesFirst,
       profitPerHour: e.timedMs > 0 ? e.timedProfit / (e.timedMs / 3600000) : null,
       volatility: stdDev(e.pls),
-      attendanceRate:
-        totalSessions - e.firstIndex > 0
-          ? e.results.length / (totalSessions - e.firstIndex)
-          : 0,
+      attendanceRate: (() => {
+        const available =
+          attendance === "wholeScope"
+            ? totalSessions
+            : totalSessions - e.firstIndex;
+        return available > 0 ? e.results.length / available : 0;
+      })(),
       medianNight: median(e.pls),
       nightsSinceLastWin: nightsSinceLastWin(e.results),
       byTableSize: [...e.tableSizes.entries()]
@@ -517,6 +520,32 @@ console.log("\nPlayer extras");
     sita.profitPerHour,
     2500 / 16,
   );
+}
+{
+  // Attendance basis. Kula plays all four nights; VMV misses the opener and
+  // plays the rest. All-time, VMV's history starts at his debut. Inside a
+  // season the opener counts against him — the season began on night one.
+  const nights = ["a", "b", "c", "d"].map((id, i) =>
+    session({
+      id,
+      startedAt: (2000 + i) * DAY,
+      players:
+        i === 0
+          ? [player("k", "Kula", 1000, 1000), player("x", "Ram", 1000, 1000)]
+          : [
+              player("k", "Kula", 1000, 1000),
+              player("v", "VMV", 1000, 1000),
+            ],
+    }),
+  );
+  const debut = new Map(computePlayerExtras(nights).map((e) => [e.playerId, e]));
+  const season = new Map(
+    computePlayerExtras(nights, "wholeScope").map((e) => [e.playerId, e]),
+  );
+  check("since debut, missing a night before your first is free", debut.get("v").attendanceRate, 1);
+  close("in a season, missing the opener counts", season.get("v").attendanceRate, 0.75);
+  check("an ever-present player is full either way", season.get("k").attendanceRate, 1);
+  close("a one-night player in a four-night season", season.get("x").attendanceRate, 0.25);
 }
 {
   // Everyone breaks even — ties share the better position.
