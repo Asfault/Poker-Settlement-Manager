@@ -191,6 +191,7 @@ export default function StatsPage() {
         <StatsView
           sessions={scopedSessions}
           playerHref={(id) => `/host/players/${id}`}
+          attendance={selectedSeason ? "wholeScope" : "sinceDebut"}
         />
       </div>
 
