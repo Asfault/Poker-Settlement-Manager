@@ -284,7 +284,10 @@ export interface PlayerExtras {
   profitPerHour: number | null;
   /** Population standard deviation of nightly P/L — how swingy they are. */
   volatility: number;
-  /** Nights played as a share of nights held since their first appearance. */
+  /**
+   * Nights played as a share of nights available to them. What counts as
+   * available depends on `AttendanceBasis` — see `computePlayerExtras`.
+   */
   attendanceRate: number;
   /** Running total of P/L, oldest first. For the cumulative chart. */
   cumulative: { at: number; total: number }[];
@@ -334,6 +337,20 @@ export interface TableSizeRow {
 }
 
 /**
+ * How attendance picks its denominator.
+ *
+ * - `sinceDebut` — nights held from the player's first appearance onwards.
+ *   For all-time history, so someone who joined in year two isn't shown at
+ *   30% for nights that happened before they'd met the group.
+ * - `wholeScope` — every night in the sessions passed in. For a season: it
+ *   started on night one whether you came or not, so missing the opener must
+ *   count. This matches the champion rule in `lib/stats/season.ts`, which
+ *   divides by the season's game count — the page and the award can't
+ *   disagree about the same player.
+ */
+export type AttendanceBasis = "sinceDebut" | "wholeScope";
+
+/**
  * Deliberately absent: head-to-head / nemesis.
  *
  * The app records buy-ins and final chip counts, not hands. Comparing two
@@ -345,6 +362,7 @@ export interface TableSizeRow {
  */
 export function computePlayerExtras(
   sessions: SessionSummary[],
+  attendance: AttendanceBasis = "sinceDebut",
 ): PlayerExtras[] {
   // Oldest first so streaks and cumulative totals build in real order.
   const chronological = [...sessions].sort((a, b) => a.startedAt - b.startedAt);
@@ -495,11 +513,13 @@ export function computePlayerExtras(
       profitPerHour:
         e.timedMs > 0 ? e.timedProfit / (e.timedMs / 3600000) : null,
       volatility: stdDev(e.pls),
-      // Nights available to them = every night from their debut onwards.
-      attendanceRate:
-        totalSessions - e.firstIndex > 0
-          ? e.results.length / (totalSessions - e.firstIndex)
-          : 0,
+      attendanceRate: (() => {
+        const available =
+          attendance === "wholeScope"
+            ? totalSessions
+            : totalSessions - e.firstIndex;
+        return available > 0 ? e.results.length / available : 0;
+      })(),
       cumulative: e.cumulative,
       medianNight: median(e.pls),
       nightsSinceLastWin: nightsSinceLastWin(e.results),
