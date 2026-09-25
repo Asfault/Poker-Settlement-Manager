@@ -7,7 +7,11 @@ import {
   SessionSummary,
   computePlayerStats,
 } from "@/lib/db/stats";
-import { PlayerExtras, computePlayerExtras } from "@/lib/stats/extra";
+import {
+  AttendanceBasis,
+  PlayerExtras,
+  computePlayerExtras,
+} from "@/lib/stats/extra";
 import { formatDateTime, formatINR } from "@/lib/format";
 import Card from "@/components/Card";
 import PlayerAvatar from "@/components/host/PlayerAvatar";
@@ -23,20 +27,26 @@ export default function PlayerDetailView({
   backHref,
   backLabel = "Stats",
   sessionHref,
+  attendance = "sinceDebut",
 }: {
   sessions: SessionSummary[];
   playerId: string;
   backHref: string;
   backLabel?: string;
   sessionHref?: (sessionId: string) => string;
+  /** `wholeScope` whenever `sessions` is one season. See `AttendanceBasis`. */
+  attendance?: AttendanceBasis;
 }) {
   const player: PlayerStats | undefined = useMemo(
     () => computePlayerStats(sessions).find((p) => p.playerId === playerId),
     [sessions, playerId],
   );
   const extras: PlayerExtras | undefined = useMemo(
-    () => computePlayerExtras(sessions).find((e) => e.playerId === playerId),
-    [sessions, playerId],
+    () =>
+      computePlayerExtras(sessions, attendance).find(
+        (e) => e.playerId === playerId,
+      ),
+    [sessions, playerId, attendance],
   );
 
   /** Every night this player was at the table, newest first. */

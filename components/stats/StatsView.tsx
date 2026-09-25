@@ -10,6 +10,7 @@ import {
   computePlayerStats,
 } from "@/lib/db/stats";
 import {
+  AttendanceBasis,
   GroupExtras,
   PlayerExtras,
   Records,
@@ -78,9 +79,12 @@ export default function StatsView({
   sessions,
   playerHref,
   roster,
+  attendance = "sinceDebut",
 }: {
   sessions: SessionSummary[];
   playerHref: (playerId: string) => string;
+  /** `wholeScope` whenever `sessions` is one season. See `AttendanceBasis`. */
+  attendance?: AttendanceBasis;
   /**
    * Active players, used only when there are no sessions yet. Everything
    * renders as normal with zeroes rather than falling back to a message.
@@ -108,9 +112,10 @@ export default function StatsView({
   const records: Records = useMemo(() => computeRecords(sessions), [sessions]);
   const playerExtras = useMemo(() => {
     const map = new Map<string, PlayerExtras>();
-    for (const e of computePlayerExtras(sessions)) map.set(e.playerId, e);
+    for (const e of computePlayerExtras(sessions, attendance))
+      map.set(e.playerId, e);
     return map;
-  }, [sessions]);
+  }, [sessions, attendance]);
 
   const archivedCount = allPlayers.filter((p) => !p.isActive).length;
   const players = showArchived
