@@ -1,5 +1,5 @@
 import type { DisplayHistorySession } from "@/lib/db/display";
-import { seasonLabel, seasonOf } from "@/lib/stats/season";
+import { SeasonName, seasonLabel, seasonOf } from "@/lib/stats/season";
 
 /**
  * The end-of-night reveal.
@@ -29,6 +29,10 @@ export interface RecapStanding {
   playerId: string;
   name: string;
   photoUrl: string | null;
+  /** For the leader's portrait on slide 2. */
+  characterUrl: string | null;
+  /** Played tonight. `tonightDelta` alone can't say — they may have broken even. */
+  playedTonight: boolean;
   total: number;
   rank: number;
   /** Positive means they climbed tonight. Null if they're new to the board. */
@@ -87,6 +91,8 @@ export interface Recap {
    */
   standings: RecapStanding[];
   seasonLabel: string;
+  /** Picks the season's accent colour for slide 2. */
+  seasonName: SeasonName;
   /** Season nights including tonight. */
   seasonNights: number;
   milestones: RecapMilestone[];
@@ -200,6 +206,8 @@ export function buildRecap(
         playerId,
         name: nameById.get(playerId)?.name ?? "—",
         photoUrl: nameById.get(playerId)?.photo ?? null,
+        characterUrl: nameById.get(playerId)?.character ?? null,
+        playedTonight: latest.players.some((p) => p.player_id === playerId),
         total,
         rank,
         // Positive = climbed. A debut has no previous position.
@@ -223,6 +231,7 @@ export function buildRecap(
     tonight,
     standings,
     seasonLabel: seasonLabel(season),
+    seasonName: season.name,
     seasonNights: inSeason.length,
     milestones: buildMilestones(
       seasonBefore,

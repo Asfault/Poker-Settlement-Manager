@@ -179,6 +179,7 @@ function buildRecap(history, now, windowMs) {
       return {
         playerId,
         name: nameById.get(playerId) ?? "—",
+        playedTonight: latest.players.some((p) => p.player_id === playerId),
         total,
         rank,
         movement: wasRanked ? (ranksBefore.get(playerId) ?? 0) - rank : null,
@@ -516,6 +517,12 @@ console.log("\nWin rate and tonight's delta");
   const absent = r.standings.find((s) => s.playerId === "p9");
   check("an absent player's win rate doesn't move", absent.winRateDelta, 0);
   check("nor does their total", absent.tonightDelta, 0);
+  check("and they're marked as sitting out", absent.playedTonight, false);
+  check(
+    "while tonight's players aren't",
+    r.standings.find((s) => s.playerId === "p1").playedTonight,
+    true,
+  );
 }
 
 console.log("\nStandings are scoped to the season");
