@@ -19,6 +19,7 @@ import {
   computeRecords,
 } from "@/lib/stats/extra";
 import { formatDateTime, formatDuration, formatINR } from "@/lib/format";
+import { computePoints, formatPoints } from "@/lib/stats/points";
 import Card from "@/components/Card";
 import PlayerAvatar from "@/components/host/PlayerAvatar";
 import MonthlyChart from "@/components/host/stats/MonthlyChart";
@@ -80,11 +81,18 @@ export default function StatsView({
   playerHref,
   roster,
   attendance = "sinceDebut",
+  showPoints = false,
 }: {
   sessions: SessionSummary[];
   playerHref: (playerId: string) => string;
   /** `wholeScope` whenever `sessions` is one season. See `AttendanceBasis`. */
   attendance?: AttendanceBasis;
+  /**
+   * Host only. Adds the points column to the leaderboard. The shared page
+   * renders this same component and must never pass it — points are the
+   * host's private statistic (`lib/stats/points.ts`).
+   */
+  showPoints?: boolean;
   /**
    * Active players, used only when there are no sessions yet. Everything
    * renders as normal with zeroes rather than falling back to a message.
@@ -110,6 +118,10 @@ export default function StatsView({
     [sessions],
   );
   const records: Records = useMemo(() => computeRecords(sessions), [sessions]);
+  const points = useMemo(
+    () => (showPoints ? computePoints(sessions) : null),
+    [sessions, showPoints],
+  );
   const playerExtras = useMemo(() => {
     const map = new Map<string, PlayerExtras>();
     for (const e of computePlayerExtras(sessions, attendance))
@@ -330,6 +342,16 @@ export default function StatsView({
                     {Math.round(p.winRate * 100)}% win rate
                   </span>
                 </span>
+                {points && (
+                  <span className="w-14 shrink-0 text-right tabular-nums leading-tight">
+                    <span className="block text-gold-400 font-bold text-[15px]">
+                      {formatPoints(points.get(p.playerId) ?? 0)}
+                    </span>
+                    <span className="block text-[10px] uppercase tracking-wider text-white/35">
+                      pts
+                    </span>
+                  </span>
+                )}
                 <span
                   className={`font-bold tabular-nums shrink-0 ${
                     p.totalProfitLoss > 0
