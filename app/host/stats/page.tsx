@@ -192,6 +192,7 @@ export default function StatsPage() {
           sessions={scopedSessions}
           playerHref={(id) => `/host/players/${id}`}
           attendance={selectedSeason ? "wholeScope" : "sinceDebut"}
+          showPoints
         />
       </div>
 
