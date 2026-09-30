@@ -37,7 +37,12 @@ export default function DisplayAvatar({
 }: {
   name: string;
   photoUrl?: string | null;
-  size?: number;
+  /**
+   * Pixels, or any CSS length. The idle board and recap pass "7vh"-style
+   * values so avatars scale with the TV's height — a fixed 72px didn't fit
+   * eight rows on a TV whose browser reports 720p, and rows overlapped.
+   */
+  size?: number | string;
   ring?: string;
 }) {
   const border = ring ? `3px solid ${ring}` : "2px solid rgba(255,255,255,0.12)";
@@ -73,7 +78,10 @@ export default function DisplayAvatar({
         width: size,
         height: size,
         background: colorFor(name),
-        fontSize: Math.round(size * 0.36),
+        fontSize:
+          typeof size === "number"
+            ? Math.round(size * 0.36)
+            : `calc(${size} * 0.36)`,
         border,
       }}
       className="rounded-full shrink-0 inline-flex items-center justify-center font-black text-[#0a0f0c]"

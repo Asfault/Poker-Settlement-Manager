@@ -3,7 +3,12 @@ import type {
   DisplayLivePlayer,
   DisplayPayload,
 } from "@/lib/db/display";
-import { seasonLabel, seasonOf } from "@/lib/stats/season";
+import {
+  seasonEndLabel,
+  seasonLabel,
+  seasonOf,
+  seasonWord,
+} from "@/lib/stats/season";
 
 /**
  * Everything the board and the content engine read, derived once from the
@@ -38,6 +43,8 @@ export interface LifetimeRow {
   name: string;
   displayName: string;
   photoUrl: string | null;
+  /** Cut-out artwork. The idle board's leader is drawn with it when set. */
+  characterUrl: string | null;
   sessions: number;
   totalProfitLoss: number;
   wins: number;
@@ -130,6 +137,10 @@ export interface Derived {
    */
   season: {
     label: string;
+    /** "Autumn" — for copy that names the season without the year. */
+    word: string;
+    /** "30 November" — the season's last day. */
+    endsLabel: string;
     standings: LifetimeRow[];
     sessions: number;
     totalMoney: number;
@@ -196,6 +207,8 @@ export function derive(payload: DisplayPayload, now = Date.now()): Derived {
     group: deriveGroup(payload.history),
     season: {
       label: seasonLabel(season),
+      word: seasonWord(season.name),
+      endsLabel: seasonEndLabel(season),
       standings: deriveLifetime(seasonHistory),
       sessions: seasonHistory.length,
       totalMoney: seasonHistory.reduce(
@@ -313,6 +326,7 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
           name: p.name,
           displayName: nameOf(p),
           photoUrl: p.photo_url,
+          characterUrl: p.character_url ?? null,
           sessions: 0,
           totalProfitLoss: 0,
           wins: 0,
@@ -395,6 +409,7 @@ function deriveLifetime(history: DisplayHistorySession[]): LifetimeRow[] {
       e.name = p.name;
       e.displayName = nameOf(p);
       e.photoUrl = p.photo_url;
+      e.characterUrl = p.character_url ?? null;
       e.isActive = p.is_active !== false;
       e.sessions += 1;
       e.totalProfitLoss += pl;

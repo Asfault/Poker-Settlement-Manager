@@ -4,11 +4,13 @@ import { seasonLabel, seasonOf } from "@/lib/stats/season";
 /**
  * The end-of-night reveal.
  *
- * Panels 1 and 2 are facts — tonight's numbers, and the table as it now
- * stands. Panel 3 is the consequences, and it only reports things that
- * actually happened. A "milestone" that fires every week isn't one, so the
- * tests here are deliberately narrow: personal records, first wins, and
- * crossing the line between up and down for the first time.
+ * Panels 1 and 2 are facts — tonight's numbers, and the season table as it
+ * now stands. Panel 3 is what tonight changed IN THE SEASON, and it only
+ * reports things that actually happened. A "milestone" that fires every week
+ * isn't one, so the tests are deliberately narrow.
+ *
+ * Everything here is scoped to the season tonight belongs to. Nothing
+ * all-time reaches the recap — the host asked for that explicitly.
  *
  * Poker numbers only. Fees and expenses never reach the board.
  */
@@ -31,7 +33,7 @@ export interface RecapStanding {
   rank: number;
   /** Positive means they climbed tonight. Null if they're new to the board. */
   movement: number | null;
-  /** What tonight did to their all-time total. 0 if they didn't play. */
+  /** What tonight did to their season total. 0 if they didn't play. */
   tonightDelta: number;
   sessions: number;
   wins: number;
@@ -68,7 +70,8 @@ export interface RecapMilestone {
   characterUrl: string | null;
   headline: string;
   detail: string;
-  tone: "win" | "loss";
+  /** "lead" is gold — taking the top spot is its own kind of news. */
+  tone: "win" | "loss" | "lead";
 }
 
 export interface Recap {
@@ -84,6 +87,8 @@ export interface Recap {
    */
   standings: RecapStanding[];
   seasonLabel: string;
+  /** Season nights including tonight. */
+  seasonNights: number;
   milestones: RecapMilestone[];
 }
 
@@ -151,24 +156,29 @@ export function buildRecap(
     .sort((a, b) => b.profitLoss - a.profitLoss);
 
   // Standings now, against standings as they were before tonight — both
-  // scoped to the season tonight belongs to. Milestones below still use the
-  // full history, since "biggest night ever" means ever.
+  // scoped to the season tonight belongs to. So are the milestones.
   const season = seasonOf(new Date(latest.started_at).getTime());
   const inSeason = sorted.filter((s) => {
     const t = new Date(s.started_at).getTime();
     return t >= season.startsAt && t < season.endsAt;
   });
-  const before = sorted.filter((s) => s.id !== latest.id);
   const seasonBefore = inSeason.filter((s) => s.id !== latest.id);
   const totalsAfter = totalsFrom(inSeason);
   const totalsBefore = totalsFrom(seasonBefore);
   const ranksAfter = rankOf(totalsAfter);
   const ranksBefore = rankOf(totalsBefore);
 
-  const nameById = new Map<string, { name: string; photo: string | null }>();
+  const nameById = new Map<
+    string,
+    { name: string; photo: string | null; character: string | null }
+  >();
   for (const s of sorted) {
     for (const p of s.players) {
-      nameById.set(p.player_id, { name: nameOf(p), photo: p.photo_url });
+      nameById.set(p.player_id, {
+        name: nameOf(p),
+        photo: p.photo_url,
+        character: p.character_url,
+      });
     }
   }
 
@@ -213,103 +223,156 @@ export function buildRecap(
     tonight,
     standings,
     seasonLabel: seasonLabel(season),
-    // Milestones stay ALL-TIME. "Biggest night ever" means ever, and
-    // "into profit at last" is about someone's whole record — passing the
-    // season totals here would have made both reset every three months.
+    seasonNights: inSeason.length,
     milestones: buildMilestones(
-      latest,
-      before,
+      seasonBefore,
       tonight,
-      totalsFrom(sorted),
-      totalsFrom(before),
+      totalsAfter,
+      totalsBefore,
+      (id) => {
+        const who = nameById.get(id);
+        return {
+          playerId: id,
+          name: who?.name ?? "—",
+          photoUrl: who?.photo ?? null,
+          characterUrl: who?.character ?? null,
+        };
+      },
     ),
   };
 }
 
+type Who = Pick<
+  RecapMilestone,
+  "playerId" | "name" | "photoUrl" | "characterUrl"
+>;
+
+/**
+ * What tonight changed in the season, most important first.
+ *
+ * - Takes the lead: top of the season table now, strictly ahead of second,
+ *   and wasn't top before tonight. Can go to someone who sat tonight out, if
+ *   the old leader lost enough.
+ * - Biggest win / worst night of the season: tonight's best (or worst)
+ *   result beats every night anyone has had this season.
+ * - First win of the season: at least two nights this season without one.
+ * - Into profit / into the red for the season: season total crosses zero,
+ *   for someone who'd already played this season.
+ *
+ * Nothing on the season's first night — every one of these would be
+ * trivially true, and a reveal of nothing but "firsts" isn't one.
+ */
 function buildMilestones(
-  latest: DisplayHistorySession,
-  before: DisplayHistorySession[],
+  seasonBefore: DisplayHistorySession[],
   tonight: RecapPlayer[],
   totalsAfter: Map<string, number>,
   totalsBefore: Map<string, number>,
+  who: (playerId: string) => Who,
 ): RecapMilestone[] {
+  if (seasonBefore.length === 0 || tonight.length === 0) return [];
   const out: RecapMilestone[] = [];
 
-  // Everyone's previous nights, for personal records.
+  // Every night anyone has had this season, before tonight.
   const priorNights = new Map<string, number[]>();
-  for (const s of before) {
+  let best: { playerId: string; pl: number; at: number } | null = null;
+  let worst: { playerId: string; pl: number; at: number } | null = null;
+  for (const s of seasonBefore) {
+    const at = new Date(s.started_at).getTime();
     for (const p of s.players) {
+      const pl = plOf(p);
       const list = priorNights.get(p.player_id) ?? [];
-      list.push(plOf(p));
+      list.push(pl);
       priorNights.set(p.player_id, list);
+      if (best === null || pl > best.pl) best = { playerId: p.player_id, pl, at };
+      if (worst === null || pl < worst.pl) worst = { playerId: p.player_id, pl, at };
     }
   }
 
+  // Takes the lead.
+  const after = [...totalsAfter.entries()].sort((a, b) => b[1] - a[1]);
+  const before = [...totalsBefore.entries()].sort((a, b) => b[1] - a[1]);
+  const [newLeader, runnerUp] = after;
+  const oldLeader = before[0];
+  if (
+    newLeader &&
+    newLeader[1] > 0 &&
+    (!runnerUp || newLeader[1] > runnerUp[1]) &&
+    (!oldLeader || oldLeader[0] !== newLeader[0])
+  ) {
+    out.push({
+      ...who(newLeader[0]),
+      headline: "Takes the lead",
+      detail: oldLeader
+        ? `Takes over from ${who(oldLeader[0]).name}`
+        : "Top of the table",
+      tone: "lead",
+    });
+  }
+
+  // Season records. Tonight is sorted best first.
+  const top = tonight[0];
+  if (best && top.profitLoss > 0 && top.profitLoss > best.pl) {
+    out.push({
+      ...who(top.playerId),
+      headline: "Biggest win of the season",
+      detail: `${inr(top.profitLoss)} beats ${who(best.playerId).name}'s ${inr(best.pl)} on ${dayMonth(best.at)}`,
+      tone: "win",
+    });
+  }
+  const bottom = tonight[tonight.length - 1];
+  if (worst && bottom.profitLoss < 0 && bottom.profitLoss < worst.pl) {
+    out.push({
+      ...who(bottom.playerId),
+      headline: "Worst night of the season",
+      detail: `${inr(bottom.profitLoss)}, worse than ${who(worst.playerId).name}'s ${inr(worst.pl)} on ${dayMonth(worst.at)}`,
+      tone: "loss",
+    });
+  }
+
+  // First win of the season.
   for (const p of tonight) {
     const prior = priorNights.get(p.playerId) ?? [];
-    const base = {
-      playerId: p.playerId,
-      name: p.name,
-      photoUrl: p.photoUrl,
-      characterUrl: p.characterUrl,
-    };
-
-    // A debut is covered by the live board's own alert; skip it here.
-    if (prior.length === 0) continue;
-
-    const bestBefore = Math.max(...prior);
-    const worstBefore = Math.min(...prior);
-
-    if (p.profitLoss > 0 && p.profitLoss > bestBefore) {
+    if (p.profitLoss > 0 && prior.length >= 2 && prior.every((x) => x <= 0)) {
       out.push({
-        ...base,
-        headline: "Biggest night ever",
-        detail:
-          bestBefore > 0
-            ? `Beats their previous best of ${inr(bestBefore)}`
-            : `First time above ${inr(0)} by this much`,
-        tone: "win",
-      });
-    } else if (p.profitLoss < 0 && p.profitLoss < worstBefore) {
-      out.push({
-        ...base,
-        headline: "Worst night ever",
-        detail: `Beats — or rather doesn't — ${inr(worstBefore)}`,
-        tone: "loss",
-      });
-    }
-
-    // First ever win.
-    if (p.profitLoss > 0 && prior.every((x) => x <= 0)) {
-      out.push({
-        ...base,
-        headline: "First ever win",
-        detail: `After ${prior.length} night${prior.length === 1 ? "" : "s"} of trying`,
+        ...who(p.playerId),
+        headline: "First win of the season",
+        detail: `After ${prior.length} nights without one`,
         tone: "win",
       });
     }
+  }
 
-    // Crossing the line, either way, for the first time.
-    const after = totalsAfter.get(p.playerId) ?? 0;
-    const priorTotal = totalsBefore.get(p.playerId) ?? 0;
-    if (priorTotal <= 0 && after > 0) {
+  // Crossing zero on the season, either way.
+  for (const p of tonight) {
+    if ((priorNights.get(p.playerId) ?? []).length === 0) continue;
+    const wasAt = totalsBefore.get(p.playerId) ?? 0;
+    const nowAt = totalsAfter.get(p.playerId) ?? 0;
+    if (wasAt <= 0 && nowAt > 0) {
       out.push({
-        ...base,
-        headline: "Into profit at last",
-        detail: `All-time now ${inr(after)}`,
+        ...who(p.playerId),
+        headline: "Into profit for the season",
+        detail: `Season now ${inr(nowAt)}`,
         tone: "win",
       });
-    } else if (priorTotal >= 0 && after < 0) {
+    } else if (wasAt >= 0 && nowAt < 0) {
       out.push({
-        ...base,
-        headline: "Underwater for the first time",
-        detail: `All-time now ${inr(after)}`,
+        ...who(p.playerId),
+        headline: "Into the red for the season",
+        detail: `Season now ${inr(nowAt)}`,
         tone: "loss",
       });
     }
   }
 
   return out;
+}
+
+/** "11 Sep". */
+function dayMonth(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
 }
 
 function inr(n: number): string {

@@ -47,41 +47,87 @@ function inr(n) {
   return `${n < 0 ? "-" : n > 0 ? "+" : ""}₹${abs}`;
 }
 
-function buildMilestones(before, tonight, totalsAfter, totalsBefore) {
+function dayMonth(ms) {
+  return new Date(ms).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+/** Season-scoped milestones, most important first. Mirrors recap.ts. */
+function buildMilestones(seasonBefore, tonight, totalsAfter, totalsBefore, who) {
+  if (seasonBefore.length === 0 || tonight.length === 0) return [];
   const out = [];
+
   const priorNights = new Map();
-  for (const s of before) {
+  let best = null;
+  let worst = null;
+  for (const s of seasonBefore) {
+    const at = new Date(s.started_at).getTime();
     for (const p of s.players) {
+      const v = plOf(p);
       const list = priorNights.get(p.player_id) ?? [];
-      list.push(plOf(p));
+      list.push(v);
       priorNights.set(p.player_id, list);
+      if (best === null || v > best.pl) best = { playerId: p.player_id, pl: v, at };
+      if (worst === null || v < worst.pl) worst = { playerId: p.player_id, pl: v, at };
     }
   }
+
+  const after = [...totalsAfter.entries()].sort((a, b) => b[1] - a[1]);
+  const before = [...totalsBefore.entries()].sort((a, b) => b[1] - a[1]);
+  const [newLeader, runnerUp] = after;
+  const oldLeader = before[0];
+  if (
+    newLeader &&
+    newLeader[1] > 0 &&
+    (!runnerUp || newLeader[1] > runnerUp[1]) &&
+    (!oldLeader || oldLeader[0] !== newLeader[0])
+  ) {
+    out.push({
+      ...who(newLeader[0]),
+      headline: "Takes the lead",
+      detail: oldLeader ? `Takes over from ${who(oldLeader[0]).name}` : "Top of the table",
+      tone: "lead",
+    });
+  }
+
+  const top = tonight[0];
+  if (best && top.profitLoss > 0 && top.profitLoss > best.pl) {
+    out.push({
+      ...who(top.playerId),
+      headline: "Biggest win of the season",
+      detail: `${inr(top.profitLoss)} beats ${who(best.playerId).name}'s ${inr(best.pl)} on ${dayMonth(best.at)}`,
+      tone: "win",
+    });
+  }
+  const bottom = tonight[tonight.length - 1];
+  if (worst && bottom.profitLoss < 0 && bottom.profitLoss < worst.pl) {
+    out.push({
+      ...who(bottom.playerId),
+      headline: "Worst night of the season",
+      detail: `${inr(bottom.profitLoss)}, worse than ${who(worst.playerId).name}'s ${inr(worst.pl)} on ${dayMonth(worst.at)}`,
+      tone: "loss",
+    });
+  }
+
   for (const p of tonight) {
     const prior = priorNights.get(p.playerId) ?? [];
-    if (prior.length === 0) continue;
-    const bestBefore = Math.max(...prior);
-    const worstBefore = Math.min(...prior);
-    const base = { playerId: p.playerId, name: p.name };
-
-    if (p.profitLoss > 0 && p.profitLoss > bestBefore) {
-      out.push({ ...base, headline: "Biggest night ever", tone: "win" });
-    } else if (p.profitLoss < 0 && p.profitLoss < worstBefore) {
-      out.push({ ...base, headline: "Worst night ever", tone: "loss" });
-    }
-    if (p.profitLoss > 0 && prior.every((x) => x <= 0)) {
-      out.push({ ...base, headline: "First ever win", tone: "win" });
-    }
-    const after = totalsAfter.get(p.playerId) ?? 0;
-    const priorTotal = totalsBefore.get(p.playerId) ?? 0;
-    if (priorTotal <= 0 && after > 0) {
-      out.push({ ...base, headline: "Into profit at last", tone: "win" });
-    } else if (priorTotal >= 0 && after < 0) {
+    if (p.profitLoss > 0 && prior.length >= 2 && prior.every((x) => x <= 0)) {
       out.push({
-        ...base,
-        headline: "Underwater for the first time",
-        tone: "loss",
+        ...who(p.playerId),
+        headline: "First win of the season",
+        detail: `After ${prior.length} nights without one`,
+        tone: "win",
       });
+    }
+  }
+
+  for (const p of tonight) {
+    if ((priorNights.get(p.playerId) ?? []).length === 0) continue;
+    const wasAt = totalsBefore.get(p.playerId) ?? 0;
+    const nowAt = totalsAfter.get(p.playerId) ?? 0;
+    if (wasAt <= 0 && nowAt > 0) {
+      out.push({ ...who(p.playerId), headline: "Into profit for the season", detail: `Season now ${inr(nowAt)}`, tone: "win" });
+    } else if (wasAt >= 0 && nowAt < 0) {
+      out.push({ ...who(p.playerId), headline: "Into the red for the season", detail: `Season now ${inr(nowAt)}`, tone: "loss" });
     }
   }
   return out;
@@ -109,14 +155,12 @@ function buildRecap(history, now, windowMs) {
     }))
     .sort((a, b) => b.profitLoss - a.profitLoss);
 
-  // Standings are scoped to the season tonight belongs to; milestones below
-  // still read the whole history.
+  // Standings and milestones are both scoped to the season tonight belongs to.
   const season = seasonWindow(new Date(latest.started_at).getTime());
   const inSeason = sorted.filter((s) => {
     const t = new Date(s.started_at).getTime();
     return t >= season.startsAt && t < season.endsAt;
   });
-  const before = sorted.filter((s) => s.id !== latest.id);
   const seasonBefore = inSeason.filter((s) => s.id !== latest.id);
   const totalsAfter = totalsFrom(inSeason);
   const totalsBefore = totalsFrom(seasonBefore);
@@ -147,14 +191,13 @@ function buildRecap(history, now, windowMs) {
     pot: latest.players.reduce((s, p) => s + p.total_buy_in, 0),
     tonight,
     standings,
-    // All-time, deliberately: "biggest night ever" means ever, and "into
-    // profit at last" is about a whole record. Passing the season totals
-    // here would reset both every three months.
+    seasonNights: inSeason.length,
     milestones: buildMilestones(
-      before,
+      seasonBefore,
       tonight,
-      totalsFrom(sorted),
-      totalsFrom(before),
+      totalsAfter,
+      totalsBefore,
+      (id) => ({ playerId: id, name: nameById.get(id) ?? "—" }),
     ),
   };
 }
@@ -322,56 +365,117 @@ console.log("\nRank movement");
   check("a debut has null movement, not zero", newbie.movement, null);
 }
 
-console.log("\nMilestones");
+console.log("\nMilestones (season only)");
+const heads = (r) => r.milestones.map((m) => `${m.name}: ${m.headline}`);
 {
-  // Ram's best was +1000; tonight he makes +4000.
+  // The season's first night: nothing has changed, it has just begun.
+  const h = [sess("only", NOW - MIN, [pl("p1", "Ram", 1000, 5000), pl("p2", "Sita", 1000, 0)])];
+  check("nothing on the season's first night", buildRecap(h, NOW, 30 * MIN).milestones, []);
+}
+{
+  // Hari led; tonight Ram wins big and takes over.
   const h = [
-    sess("old", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 2000), pl("p2", "Sita", 1000, 0)]),
-    sess("new", NOW - MIN, [pl("p1", "Ram", 1000, 5000), pl("p2", "Sita", 1000, 0)]),
+    sess("a", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 2000), pl("p2", "Hari", 1000, 6000), pl("p3", "Sita", 1000, 0)]),
+    sess("b", NOW - MIN, [pl("p1", "Ram", 1000, 9000), pl("p2", "Hari", 1000, 0), pl("p3", "Sita", 1000, 1000)]),
   ];
   const r = buildRecap(h, NOW, 30 * MIN);
-  const heads = r.milestones.map((m) => `${m.name}: ${m.headline}`);
-  check("a personal best is reported", heads.includes("Ram: Biggest night ever"), true);
+  check("a new leader is reported first", r.milestones[0].headline, "Takes the lead");
+  check("and it's the right person", r.milestones[0].name, "Ram");
+  check("naming who they took it from", r.milestones[0].detail, "Takes over from Hari");
+  check("in gold", r.milestones[0].tone, "lead");
+  check("the season's best night is reported", heads(r).includes("Ram: Biggest win of the season"), true);
+}
+{
+  // A tie at the top isn't a lead.
+  const h = [
+    sess("a", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 3000), pl("p2", "Hari", 1000, 0)]),
+    sess("b", NOW - MIN, [pl("p1", "Ram", 1000, 0), pl("p2", "Hari", 1000, 3000)]),
+  ];
   check(
-    "a losing night that isn't a record says nothing",
-    heads.some((x) => x.startsWith("Sita")),
+    "level on top means nobody takes the lead",
+    heads(buildRecap(h, NOW, 30 * MIN)).some((x) => x.endsWith("Takes the lead")),
     false,
   );
 }
 {
-  // Sita has lost twice, then wins.
+  // Someone who sat tonight out can inherit the lead.
   const h = [
-    sess("s1", NOW - 20 * DAY, [pl("p2", "Sita", 1000, 0)]),
-    sess("s2", NOW - 10 * DAY, [pl("p2", "Sita", 1000, 500)]),
-    sess("s3", NOW - MIN, [pl("p2", "Sita", 1000, 4000)]),
+    sess("a", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 6000), pl("p2", "Hari", 1000, 4000), pl("p3", "Sita", 1000, 0)]),
+    sess("b", NOW - MIN, [pl("p1", "Ram", 5000, 0), pl("p3", "Sita", 1000, 2000)]),
   ];
-  const heads = buildRecap(h, NOW, 30 * MIN).milestones.map((m) => m.headline);
-  check("first ever win is reported", heads.includes("First ever win"), true);
-  check("so is crossing into profit", heads.includes("Into profit at last"), true);
-}
-{
-  // A player on their very first night gets nothing — the live board already
-  // announced the debut.
-  const h = [sess("only", NOW - MIN, [pl("p1", "Ram", 1000, 5000)])];
   check(
-    "a debut produces no milestone here",
-    buildRecap(h, NOW, 30 * MIN).milestones,
-    [],
+    "an absent player can take the lead",
+    heads(buildRecap(h, NOW, 30 * MIN)).includes("Hari: Takes the lead"),
+    true,
   );
 }
 {
-  // Ram was up overall, tonight drags him under for the first time.
+  // Sita's -4000 is worse than anyone's night this season.
   const h = [
-    sess("old", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 2000)]),
-    sess("new", NOW - MIN, [pl("p1", "Ram", 5000, 0)]),
+    sess("a", NOW - 10 * DAY, [pl("p1", "Ram", 3000, 0), pl("p2", "Sita", 1000, 4000)]),
+    sess("b", NOW - MIN, [pl("p1", "Ram", 1000, 5000), pl("p2", "Sita", 5000, 1000)]),
   ];
-  const heads = buildRecap(h, NOW, 30 * MIN).milestones.map((m) => m.headline);
+  const r = buildRecap(h, NOW, 30 * MIN);
+  check("the season's worst night is reported", heads(r).includes("Sita: Worst night of the season"), true);
+  check("and so is the biggest win", heads(r).includes("Ram: Biggest win of the season"), true);
+}
+{
+  // A good night that doesn't beat the season's best says nothing.
+  const h = [
+    sess("a", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 9000), pl("p2", "Sita", 9000, 1000)]),
+    sess("b", NOW - MIN, [pl("p1", "Ram", 1000, 0), pl("p2", "Sita", 1000, 2000)]),
+  ];
   check(
-    "going underwater is reported once",
-    heads.filter((x) => x === "Underwater for the first time").length,
-    1,
+    "no season record, no record milestone",
+    heads(buildRecap(h, NOW, 30 * MIN)).some((x) => x.includes("of the season") && !x.includes("First")),
+    false,
   );
-  check("and so is the record loss", heads.includes("Worst night ever"), true);
+}
+{
+  // Sita lost twice this season, then wins.
+  const h = [
+    sess("s1", NOW - 20 * DAY, [pl("p2", "Sita", 1000, 0), pl("p1", "Ram", 1000, 2000)]),
+    sess("s2", NOW - 10 * DAY, [pl("p2", "Sita", 1000, 500), pl("p1", "Ram", 1000, 1500)]),
+    sess("s3", NOW - MIN, [pl("p2", "Sita", 1000, 1200), pl("p1", "Ram", 1000, 800)]),
+  ];
+  const r = buildRecap(h, NOW, 30 * MIN);
+  check("first win of the season is reported", heads(r).includes("Sita: First win of the season"), true);
+  check("after two or more nights", r.milestones.find((m) => m.headline === "First win of the season").detail, "After 2 nights without one");
+}
+{
+  // One losing night isn't a drought.
+  const h = [
+    sess("s1", NOW - 10 * DAY, [pl("p2", "Sita", 1000, 0), pl("p1", "Ram", 1000, 2000)]),
+    sess("s2", NOW - MIN, [pl("p2", "Sita", 1000, 1500), pl("p1", "Ram", 1000, 500)]),
+  ];
+  check(
+    "a win after a single loss isn't a first win",
+    heads(buildRecap(h, NOW, 30 * MIN)).includes("Sita: First win of the season"),
+    false,
+  );
+}
+{
+  // Ram crosses into profit on the season; Sita drops into the red.
+  const h = [
+    sess("s1", NOW - 10 * DAY, [pl("p1", "Ram", 1500, 1000), pl("p2", "Sita", 1000, 1500)]),
+    sess("s2", NOW - MIN, [pl("p1", "Ram", 1000, 2000), pl("p2", "Sita", 2000, 1000)]),
+  ];
+  const r = buildRecap(h, NOW, 30 * MIN);
+  check("crossing into profit is reported", heads(r).includes("Ram: Into profit for the season"), true);
+  check("with the season total", r.milestones.find((m) => m.headline === "Into profit for the season").detail, "Season now +₹500");
+  check("so is dropping into the red", heads(r).includes("Sita: Into the red for the season"), true);
+}
+{
+  // A player's first night of the season crosses nothing.
+  const h = [
+    sess("s1", NOW - 10 * DAY, [pl("p1", "Ram", 1000, 2000), pl("p2", "Sita", 1000, 0)]),
+    sess("s2", NOW - MIN, [pl("p1", "Ram", 1000, 0), pl("p9", "Newbie", 1000, 3000)]),
+  ];
+  check(
+    "a season debut isn't 'into profit'",
+    heads(buildRecap(h, NOW, 30 * MIN)).includes("Newbie: Into profit for the season"),
+    false,
+  );
 }
 
 console.log("\nWin rate and tonight's delta");
@@ -399,7 +503,7 @@ console.log("\nWin rate and tonight's delta");
     Math.round(sita.winRateDelta),
     -33,
   );
-  check("tonight's delta on the all-time total", ram.tonightDelta, 2000);
+  check("tonight's delta on the season total", ram.tonightDelta, 2000);
   check("and the other direction", sita.tonightDelta, -1000);
 }
 {
@@ -417,8 +521,7 @@ console.log("\nWin rate and tonight's delta");
 console.log("\nStandings are scoped to the season");
 {
   // NOW sits in winter. A game 120 days earlier is the previous season, so
-  // it must not count towards the standings — but it should still be
-  // visible to the milestone tests, which are all-time by design.
+  // it must not count towards the standings or the milestones.
   const lastSeason = sess("old", NOW - 120 * DAY, [
     pl("p1", "Ram", 1000, 9000),
     pl("p2", "Sita", 1000, 0),
@@ -446,24 +549,11 @@ console.log("\nStandings are scoped to the season");
     byId.get("p1").movement,
     null,
   );
-  // Ram's -1000 is his worst night only when measured against last
-  // season's +8000 — so this firing proves milestones aren't season-scoped.
-  check(
-    "milestones still see the whole history",
-    r.milestones.some(
-      (m) => m.name === "Ram" && m.headline === "Worst night ever",
-    ),
-    true,
-  );
-  // And the mirror of it: all-time he's still +7000, so he hasn't gone
-  // under. Season totals would have said -1000 and fired this wrongly.
-  check(
-    "and judge profit across it, not just this season",
-    r.milestones.some(
-      (m) => m.name === "Ram" && m.headline === "Underwater for the first time",
-    ),
-    false,
-  );
+  // Last season's game is invisible to the milestones too. Tonight is the
+  // first night of this season, so nothing is reported — if last season
+  // leaked in, Ram's -1000 would read as a record loss and Sita's +2000 as
+  // a new leader.
+  check("last season never reaches the milestones", r.milestones, []);
 }
 {
   // Two games in the same season — movement is measured within it.
