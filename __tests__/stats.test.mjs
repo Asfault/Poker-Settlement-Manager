@@ -231,7 +231,7 @@ function computePlayerExtras(sessions, attendance = "sinceDebut") {
       avgFinishPosition: mean(e.positions),
       timesFirst: e.timesFirst,
       profitPerHour: e.timedMs > 0 ? e.timedProfit / (e.timedMs / 3600000) : null,
-      volatility: stdDev(e.pls),
+      avgBuyIn: e.results.length > 0 ? e.totalBuyIn / e.results.length : 0,
       attendanceRate: (() => {
         const available =
           attendance === "wholeScope"
@@ -502,6 +502,8 @@ console.log("\nPlayer extras");
   const gita = byId.get("p3");
 
   close("ROI is profit over money staked", ram.roi, -1500 / 4000);
+  check("average buy-in is money staked per night", ram.avgBuyIn, 1000);
+  check("average buy-in counts only nights played", gita.avgBuyIn, 1000);
   check("current streak reads the most recent nights", ram.currentStreak, {
     type: "L",
     length: 3,
