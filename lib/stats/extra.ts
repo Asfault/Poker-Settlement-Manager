@@ -282,8 +282,11 @@ export interface PlayerExtras {
   timesLast: number;
   /** Null when they've only ever played backfilled nights. */
   profitPerHour: number | null;
-  /** Population standard deviation of nightly P/L — how swingy they are. */
-  volatility: number;
+  /**
+   * Rupees put in per night, all buy-ins combined. Backfill counts: its one
+   * lump row still holds the night's full amount — only the COUNT is lost.
+   */
+  avgBuyIn: number;
   /**
    * Nights played as a share of nights available to them. What counts as
    * available depends on `AttendanceBasis` — see `computePlayerExtras`.
@@ -521,7 +524,7 @@ export function computePlayerExtras(
       timesLast: e.timesLast,
       profitPerHour:
         e.timedMs > 0 ? e.timedProfit / (e.timedMs / 3600000) : null,
-      volatility: stdDev(e.pls),
+      avgBuyIn: e.results.length > 0 ? e.totalBuyIn / e.results.length : 0,
       attendanceRate: (() => {
         const available =
           attendance === "wholeScope"
