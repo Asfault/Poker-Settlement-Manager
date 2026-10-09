@@ -277,8 +277,8 @@ export default function PlayerDetailView({
             tone={extras.roi > 0 ? "win" : extras.roi < 0 ? "loss" : undefined}
           />
           <DetailRow
-            label="Swing"
-            value={`±${formatINR(Math.round(extras.volatility))}`}
+            label="Avg buy-in"
+            value={formatINR(Math.round(extras.avgBuyIn))}
           />
         </div>
         {extras.rebuyTiming && (

@@ -460,8 +460,8 @@ export default function StatsView({
                           />
                         )}
                         <Row
-                          label="Swing"
-                          value={`±${formatINR(Math.round(x.volatility))}`}
+                          label="Avg buy-in"
+                          value={formatINR(Math.round(x.avgBuyIn))}
                         />
                       </>
                     )}
