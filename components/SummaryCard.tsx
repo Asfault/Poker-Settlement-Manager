@@ -79,6 +79,18 @@ function signedINR(amount: number): string {
   return formatINR(0);
 }
 
+/**
+ * "SAT, 3 OCT 2026" — the date the game STARTED, so a night that runs past
+ * midnight is still dated the night it was played. Formatted in the
+ * exporting device's timezone.
+ */
+function sessionDate(ms: number): string {
+  const d = new Date(ms);
+  const weekday = d.toLocaleDateString("en-IN", { weekday: "short" });
+  const month = d.toLocaleDateString("en-IN", { month: "short" });
+  return `${weekday}, ${d.getDate()} ${month} ${d.getFullYear()}`.toUpperCase();
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -301,6 +313,7 @@ function MiniAvatar({
 const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
   function SummaryCard(
     {
+      startedAt,
       results,
       settlements,
       totalPot,
@@ -449,7 +462,7 @@ const SummaryCard = forwardRef<HTMLDivElement, SummaryCardProps>(
               whiteSpace: "nowrap",
             }}
           >
-            — SESSION CLOSED —
+            — {sessionDate(startedAt)} —
           </div>
         </div>
 
